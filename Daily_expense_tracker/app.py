@@ -4,6 +4,12 @@ import csv
 import os
 from datetime import datetime, timedelta
 
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib import colors
+
+
 FILENAME = "expenses.csv"
 
 # --- UI CONSTANTS ---
@@ -77,6 +83,35 @@ class ExpenseApp:
             relief="flat",
             cursor="hand2"
             ).pack(anchor="w", pady=10)
+
+        tk.Label(summary_box, text="Select Month", bg=BG_COLOR, font=FONT_MAIN).pack(anchor="w")
+
+        self.month_var = tk.StringVar()
+        months = [
+            "January","February","March","April","May","June",
+            "July","August","September","October","November","December"
+        ]
+        self.month_combo = ttk.Combobox(
+            summary_box,
+            textvariable=self.month_var,
+            values=months,
+            state="readonly",
+            width=18
+        )
+        self.month_combo.current(datetime.now().month - 1)
+        self.month_combo.pack(anchor="w", pady=5)
+
+        tk.Button(
+            summary_box,
+            text="Download PDF Report",
+            command=self.download_selected_month_pdf,
+            bg=INFO_COLOR,
+            fg="white",
+            font=FONT_BOLD,
+            relief="flat",
+            cursor="hand2"
+        ).pack(anchor="w", pady=10)
+
 
         summary_box.pack(side=tk.RIGHT, fill=tk.BOTH)
 
@@ -272,6 +307,83 @@ class ExpenseApp:
             "Report Downloaded",
             f"Last month report saved as:\n{report_name}"
         )
+
+    def export_month_to_pdf(self, year, month):
+        if not os.path.exists(FILENAME):
+            messagebox.showinfo("No Data", "No expenses found.")
+            return
+
+        rows = []
+        total = 0.0
+
+        with open(FILENAME, mode='r') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                try:
+                    dt = row["DateTime"]
+                    try:
+                        date_obj = datetime.strptime(dt, "%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        date_obj = datetime.strptime(dt, "%Y-%m-%d %H:%M")
+
+                    if date_obj.year == year and date_obj.month == month:
+                        rows.append([
+                            row["DateTime"],
+                            row["Category"],
+                            row["Description"],
+                            f"Rs. {float(row['Amount']):,.2f}"
+                        ])
+                        total += float(row["Amount"])
+                except:
+                    continue
+
+        if not rows:
+            messagebox.showinfo("No Data", "No expenses found for selected month.")
+            return
+
+        filename = f"Expense_Report_{year}_{month:02d}.pdf"
+        pdf = SimpleDocTemplate(filename, pagesize=A4)
+
+        styles = getSampleStyleSheet()
+        elements = []
+
+        elements.append(Paragraph(
+            f"<b>Expense Report – {year}-{month:02d}</b>", styles["Title"]
+        ))
+
+        table_data = [["Date & Time", "Category", "Description", "Amount"]] + rows
+        table_data.append(["", "", "TOTAL", f"Rs. {total:,.2f}"])
+
+        table = Table(table_data, colWidths=[120, 90, 200, 90])
+        table.setStyle(TableStyle([
+            ("GRID", (0,0), (-1,-1), 1, colors.grey),
+            ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
+            ("FONT", (0,0), (-1,0), "Helvetica-Bold"),
+            ("ALIGN", (-1,1), (-1,-1), "RIGHT"),
+            ("FONT", (-2,-1), (-1,-1), "Helvetica-Bold"),
+        ]))
+
+        elements.append(table)
+        pdf.build(elements)
+
+        messagebox.showinfo("PDF Exported", f"Saved as:\n{filename}")
+
+    def download_selected_month_pdf(self):
+        month_name = self.month_var.get()
+        if not month_name:
+            messagebox.showwarning("Select Month", "Please select a month.")
+            return
+
+        month_number = datetime.strptime(month_name, "%B").month
+        year = datetime.now().year
+
+        # If future month selected, assume last year
+        if month_number > datetime.now().month:
+            year -= 1
+
+        self.export_month_to_pdf(year, month_number)
+
+
 
 
 if __name__ == "__main__":
