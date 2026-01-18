@@ -2,15 +2,16 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 import csv
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 FILENAME = "expenses.csv"
 
 # --- UI CONSTANTS ---
-BG_COLOR = "#f4f7f6"        # Light grey background
-ACCENT_COLOR = "#34495e"    # Dark blue-grey for headers
-SUCCESS_COLOR = "#27ae60"   # Green
-DANGER_COLOR = "#e74c3c"    # Red
+BG_COLOR = "#f4f7f6"
+ACCENT_COLOR = "#34495e"
+SUCCESS_COLOR = "#27ae60"
+DANGER_COLOR = "#e74c3c"
+INFO_COLOR = "#2980b9"  # New color for weekly
 TEXT_COLOR = "#2c3e50"
 FONT_MAIN = ("Segoe UI", 10)
 FONT_BOLD = ("Segoe UI", 10, "bold")
@@ -19,10 +20,9 @@ class ExpenseApp:
     def __init__(self, root):
         self.root = root
         self.root.title("💸 Expense Tracker Pro")
-        self.root.geometry("850x700")
+        self.root.geometry("900x750") # Slightly wider/taller for new UI
         self.root.configure(bg=BG_COLOR)
 
-        # Apply Modern Styling
         self.setup_styles()
 
         # --- HEADER ---
@@ -39,7 +39,7 @@ class ExpenseApp:
         top_frame = tk.Frame(main_container, bg=BG_COLOR)
         top_frame.pack(fill=tk.X, pady=10)
 
-        # Input Box (Left Side)
+        # Input Box
         input_box = tk.LabelFrame(top_frame, text=" Add New Entry ", font=FONT_BOLD, 
                                   bg=BG_COLOR, fg=TEXT_COLOR, padx=15, pady=15)
         input_box.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 10))
@@ -64,29 +64,32 @@ class ExpenseApp:
         tk.Button(btn_frame, text="Delete Selected", command=self.delete_expense, bg=DANGER_COLOR, 
                   fg="white", font=FONT_BOLD, relief="flat", width=15, cursor="hand2").pack(side=tk.LEFT, padx=10)
 
-        # Summary Box (Right Side)
-        summary_box = tk.LabelFrame(top_frame, text=" Daily Summary ", font=FONT_BOLD, 
+        # Summary Box (Modified to include Weekly)
+        summary_box = tk.LabelFrame(top_frame, text=" Spending Summary ", font=FONT_BOLD, 
                                     bg=BG_COLOR, fg=TEXT_COLOR, padx=15, pady=15)
         summary_box.pack(side=tk.RIGHT, fill=tk.BOTH)
 
-        self.today_label = tk.Label(summary_box, text="Today: Rs. 0.00", font=("Segoe UI", 14, "bold"), 
+        self.today_label = tk.Label(summary_box, text="Today: Rs. 0.00", font=FONT_BOLD, 
                                     fg=SUCCESS_COLOR, bg=BG_COLOR)
-        self.today_label.pack(pady=5)
-        
-        self.total_label = tk.Label(summary_box, text="All Time: Rs. 0.00", font=FONT_MAIN, 
-                                    fg=TEXT_COLOR, bg=BG_COLOR)
-        self.total_label.pack()
+        self.today_label.pack(anchor="w", pady=2)
 
-        # --- BOTTOM SECTION: TABLE & SCROLLBAR ---
+        self.weekly_label = tk.Label(summary_box, text="This Week: Rs. 0.00", font=FONT_BOLD, 
+                                     fg=INFO_COLOR, bg=BG_COLOR)
+        self.weekly_label.pack(anchor="w", pady=2)
+        
+        self.total_label = tk.Label(summary_box, text="Total: Rs. 0.00", font=FONT_MAIN, 
+                                    fg=TEXT_COLOR, bg=BG_COLOR)
+        self.total_label.pack(anchor="w", pady=2)
+
+        # --- BOTTOM SECTION: TABLE ---
         table_frame = tk.Frame(main_container, bg="white")
         table_frame.pack(fill=tk.BOTH, expand=True, pady=20)
 
-        # The Scrollbar
         scrollbar = ttk.Scrollbar(table_frame)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         self.tree = ttk.Treeview(table_frame, columns=("Date", "Cat", "Desc", "Amt"), 
-                                 show='headings', height=15, yscrollcommand=scrollbar.set)
+                                  show='headings', height=15, yscrollcommand=scrollbar.set)
         
         self.tree.heading("Date", text="DATE & TIME")
         self.tree.heading("Cat", text="CATEGORY")
@@ -96,33 +99,18 @@ class ExpenseApp:
         self.tree.column("Date", width=180, anchor=tk.CENTER)
         self.tree.column("Cat", width=120, anchor=tk.W)
         self.tree.column("Desc", width=300, anchor=tk.W)
-        self.tree.column("Amt", width=100, anchor=tk.E) # Right Aligned
+        self.tree.column("Amt", width=100, anchor=tk.E)
         
         self.tree.pack(fill=tk.BOTH, expand=True)
         scrollbar.config(command=self.tree.yview)
 
-        # Initial Load
         self.refresh_ui()
 
     def setup_styles(self):
         style = ttk.Style()
-        style.theme_use("clam") # Base theme that allows better color control
-        
-        # Style the Treeview
-        style.configure("Treeview", 
-                        background="white", 
-                        foreground=TEXT_COLOR, 
-                        rowheight=35, 
-                        fieldbackground="white",
-                        font=FONT_MAIN)
-        
-        style.configure("Treeview.Heading", 
-                        background="#ecf0f1", 
-                        foreground=TEXT_COLOR, 
-                        font=FONT_BOLD, 
-                        relief="flat")
-        
-        # Selection color
+        style.theme_use("clam")
+        style.configure("Treeview", background="white", foreground=TEXT_COLOR, rowheight=35, fieldbackground="white", font=FONT_MAIN)
+        style.configure("Treeview.Heading", background="#ecf0f1", foreground=TEXT_COLOR, font=FONT_BOLD, relief="flat")
         style.map("Treeview", background=[('selected', '#d5dbdb')])
 
     def add_expense(self):
@@ -142,7 +130,6 @@ class ExpenseApp:
                 writer = csv.writer(file)
                 writer.writerow([timestamp, category, description, amount])
 
-            # Clear inputs
             self.cat_entry.delete(0, tk.END)
             self.desc_entry.delete(0, tk.END)
             self.amt_entry.delete(0, tk.END)
@@ -167,7 +154,6 @@ class ExpenseApp:
                 header = next(reader)
                 updated_rows.append(header)
                 for row in reader:
-                    # Match timestamp and normalized amount
                     if not deleted and row[0] == str(item_data[0]) and float(row[3]) == float(item_data[3]):
                         deleted = True
                         continue
@@ -184,21 +170,42 @@ class ExpenseApp:
         self.load_table()
 
     def update_totals(self):
-        total_all, total_day = 0.0, 0.0
-        today = datetime.now().strftime("%Y-%m-%d")
+        total_all, total_day, total_week = 0.0, 0.0, 0.0
+        
+        now = datetime.now()
+        today_str = now.strftime("%Y-%m-%d")
+        seven_days_ago = now - timedelta(days=7)
 
         if os.path.exists(FILENAME):
             with open(FILENAME, mode='r') as file:
                 reader = csv.DictReader(file)
                 for row in reader:
-                    amt = float(row["Amount"])
-                    total_all += amt
-                    if row["DateTime"].startswith(today):
-                        total_day += amt
+                    try:
+                        amt = float(row["Amount"])
+                        total_all += amt
+                        
+                        # FIX: Try to parse with seconds, if it fails, try without seconds
+                        date_str = row["DateTime"]
+                        try:
+                            row_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+                        except ValueError:
+                            row_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M")
+                        
+                        # Daily check
+                        if date_str.startswith(today_str):
+                            total_day += amt
+                        
+                        # Weekly check
+                        if row_date >= seven_days_ago:
+                            total_week += amt
+                    except (ValueError, KeyError):
+                        # This skips rows that might be corrupted or empty
+                        continue
 
-        self.total_label.config(text=f"All Time: Rs. {total_all:,.2f}")
+        self.total_label.config(text=f"Total: Rs. {total_all:,.2f}")
         self.today_label.config(text=f"Today: Rs. {total_day:,.2f}")
-
+        self.weekly_label.config(text=f"This Week: Rs. {total_week:,.2f}")
+        
     def load_table(self):
         for item in self.tree.get_children():
             self.tree.delete(item)
@@ -206,7 +213,6 @@ class ExpenseApp:
         if os.path.exists(FILENAME):
             with open(FILENAME, mode='r') as file:
                 rows = list(csv.reader(file))[1:]
-                # Show latest expenses at the top
                 for row in reversed(rows):
                     self.tree.insert("", tk.END, values=row)
 
