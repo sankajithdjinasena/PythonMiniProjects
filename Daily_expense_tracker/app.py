@@ -67,6 +67,17 @@ class ExpenseApp:
         # Summary Box (Modified to include Weekly)
         summary_box = tk.LabelFrame(top_frame, text=" Spending Summary ", font=FONT_BOLD, 
                                     bg=BG_COLOR, fg=TEXT_COLOR, padx=15, pady=15)
+        tk.Button(
+            summary_box,
+            text="Download Last Month Report",
+            command=self.download_last_month_report,
+            bg=INFO_COLOR,
+            fg="white",
+            font=FONT_BOLD,
+            relief="flat",
+            cursor="hand2"
+            ).pack(anchor="w", pady=10)
+
         summary_box.pack(side=tk.RIGHT, fill=tk.BOTH)
 
         self.today_label = tk.Label(summary_box, text="Today: Rs. 0.00", font=FONT_BOLD, 
@@ -215,6 +226,53 @@ class ExpenseApp:
                 rows = list(csv.reader(file))[1:]
                 for row in reversed(rows):
                     self.tree.insert("", tk.END, values=row)
+
+    def download_last_month_report(self):
+        if not os.path.exists(FILENAME):
+            messagebox.showinfo("No Data", "No expenses found.")
+            return
+
+        now = datetime.now()
+        first_day_this_month = now.replace(day=1)
+        last_month_end = first_day_this_month - timedelta(days=1)
+        last_month_start = last_month_end.replace(day=1)
+
+        report_rows = []
+
+        with open(FILENAME, mode='r') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                try:
+                    date_str = row["DateTime"]
+                    try:
+                        expense_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        expense_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M")
+
+                    if last_month_start <= expense_date <= last_month_end:
+                        report_rows.append(row)
+                except (KeyError, ValueError):
+                    continue
+
+        if not report_rows:
+            messagebox.showinfo("No Data", "No expenses found for last month.")
+            return
+
+        report_name = f"Expense_Report_{last_month_start.strftime('%Y_%m')}.csv"
+
+        with open(report_name, mode='w', newline='') as file:
+            writer = csv.DictWriter(
+                file,
+                fieldnames=["DateTime", "Category", "Description", "Amount"]
+            )
+            writer.writeheader()
+            writer.writerows(report_rows)
+
+        messagebox.showinfo(
+            "Report Downloaded",
+            f"Last month report saved as:\n{report_name}"
+        )
+
 
 if __name__ == "__main__":
     if not os.path.exists(FILENAME):
