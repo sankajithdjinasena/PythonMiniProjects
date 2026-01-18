@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox, ttk, filedialog
 import csv
 import os
 from datetime import datetime, timedelta
@@ -75,7 +75,7 @@ class ExpenseApp:
                                     bg=BG_COLOR, fg=TEXT_COLOR, padx=15, pady=15)
         tk.Button(
             summary_box,
-            text="Download Last Month Report",
+            text="Download Last Month CSV Report",
             command=self.download_last_month_report,
             bg=INFO_COLOR,
             fg="white",
@@ -304,7 +304,7 @@ class ExpenseApp:
             writer.writerows(report_rows)
 
         messagebox.showinfo(
-            "Report Downloaded",
+            "CSV Downloaded",
             f"Last month report saved as:\n{report_name}"
         )
 
@@ -341,8 +341,17 @@ class ExpenseApp:
             messagebox.showinfo("No Data", "No expenses found for selected month.")
             return
 
-        filename = f"Expense_Report_{year}_{month:02d}.pdf"
-        pdf = SimpleDocTemplate(filename, pagesize=A4)
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".pdf",
+            filetypes=[("PDF Files", "*.pdf")],
+            initialfile=f"Expense_Report_{year}_{month:02d}.pdf",
+            title="Save Expense Report"
+        )
+
+        if not file_path:
+            return  # User clicked Cancel
+        
+        pdf = SimpleDocTemplate(file_path, pagesize=A4)
 
         styles = getSampleStyleSheet()
         elements = []
@@ -354,7 +363,7 @@ class ExpenseApp:
         table_data = [["Date & Time", "Category", "Description", "Amount"]] + rows
         table_data.append(["", "", "TOTAL", f"Rs. {total:,.2f}"])
 
-        table = Table(table_data, colWidths=[120, 90, 200, 90])
+        table = Table(table_data, colWidths=[120, 90, 250, 90])
         table.setStyle(TableStyle([
             ("GRID", (0,0), (-1,-1), 1, colors.grey),
             ("BACKGROUND", (0,0), (-1,0), colors.lightgrey),
@@ -366,7 +375,7 @@ class ExpenseApp:
         elements.append(table)
         pdf.build(elements)
 
-        messagebox.showinfo("PDF Exported", f"Saved as:\n{filename}")
+        messagebox.showinfo("PDF Exported", f"Saved to:\n{file_path}")
 
     def download_selected_month_pdf(self):
         month_name = self.month_var.get()
