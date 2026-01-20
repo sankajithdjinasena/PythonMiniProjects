@@ -139,12 +139,13 @@ class ExpenseApp:
 
         self.refresh_ui()
 
-    def open_dashboard(self):
-        """Creates a pop-up window with charts showing numeric values"""
+    def open_dashboard(self):   
+        """Creates a pop-up window with charts and a Rs. 600 Budget Limit indicator"""
         if not os.path.exists(FILENAME):
             messagebox.showinfo("No Data", "Add expenses to view the dashboard.")
             return
 
+        DAILY_LIMIT = 600.0  # Your specified limit
         cat_data = {}
         daily_data = {}
         
@@ -162,41 +163,49 @@ class ExpenseApp:
         if not cat_data: return
 
         dash_window = tk.Toplevel(self.root)
-        dash_window.title("Expense Analytics")
-        dash_window.geometry("1100x600")
+        dash_window.title("Expense Analytics & Budget Tracking")
+        dash_window.geometry("1100x650")
         dash_window.configure(bg="white")
 
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
         fig.patch.set_facecolor('white')
 
-        # 1. Pie Chart
+        # --- 1. Pie Chart (Category Distribution) ---
         ax1.pie(cat_data.values(), labels=cat_data.keys(), autopct='%1.1f%%', 
                 startangle=140, colors=plt.cm.Pastel1.colors, wedgeprops={'edgecolor': 'white'})
         ax1.set_title("Spending Distribution by Category", pad=20, fontdict={'fontsize': 12, 'weight': 'bold'})
 
-        # 2. Bar Chart with Values
-        sorted_dates = sorted(daily_data.keys())[-7:]
+        # --- 2. Bar Chart with Budget Logic ---
+        sorted_dates = sorted(daily_data.keys())[-7:]  # Last 7 days of data
         recent_values = [daily_data[d] for d in sorted_dates]
         
-        bars = ax2.bar(sorted_dates, recent_values, color="#3498db")
+        # Determine bar colors: Red if > 600, Blue if <= 600
+        bar_colors = [DANGER_COLOR if val > DAILY_LIMIT else "#3498db" for val in recent_values]
         
-        # KEY ADDITION: Add labels on top of bars
+        bars = ax2.bar(sorted_dates, recent_values, color=bar_colors)
+        
+        # Add numeric labels on top of bars
         ax2.bar_label(bars, padding=3, fmt='Rs.%.0f', fontproperties={'size': 9, 'weight': 'bold'})
         
-        ax2.set_title("Last 7 Days Spending Trend", pad=20, fontdict={'fontsize': 12, 'weight': 'bold'})
+        # Add the horizontal Budget Limit line
+        ax2.axhline(y=DAILY_LIMIT, color=DANGER_COLOR, linestyle='--', linewidth=2, label=f"Limit: Rs. {DAILY_LIMIT}")
+        ax2.legend() # Displays the budget limit label
+
+        ax2.set_title(f"Daily Spend vs. Budget (Limit: Rs. {DAILY_LIMIT})", pad=20, fontdict={'fontsize': 12, 'weight': 'bold'})
         ax2.set_ylabel("Amount (Rs.)")
         plt.setp(ax2.get_xticklabels(), rotation=30, ha="right")
         
-        # Styling adjustments
+        # Chart Styling
         ax2.spines['top'].set_visible(False)
         ax2.spines['right'].set_visible(False)
-        ax2.grid(axis='y', linestyle='--', alpha=0.7)
+        ax2.grid(axis='y', linestyle='--', alpha=0.5)
 
         plt.tight_layout()
 
+        # Render in Tkinter
         canvas = FigureCanvasTkAgg(fig, master=dash_window)
         canvas.draw()
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True, pady=20)
 
     def setup_styles(self):
         style = ttk.Style()
@@ -270,18 +279,30 @@ class ExpenseApp:
     def refresh_ui(self):
         self.update_totals(); self.update_filter_list(); self.load_table()
 
+
     def update_totals(self):
+        DAILY_LIMIT = 600.0  # Set your limit here
         total, today = 0.0, 0.0
         t_str = datetime.now().strftime("%Y-%m-%d")
+        
         if os.path.exists(FILENAME):
             with open(FILENAME, 'r') as f:
                 for r in csv.DictReader(f):
                     try:
-                        amt = float(r["Amount"]); total += amt
-                        if r["DateTime"].startswith(t_str): today += amt
+                        amt = float(r["Amount"])
+                        total += amt
+                        if r["DateTime"].startswith(t_str):
+                            today += amt
                     except: continue
-        self.total_label.config(text=f"Total: Rs. {total:,.2f}")
+                    
+        # UI Logic: Change color to Red if over limit
         self.today_label.config(text=f"Today: Rs. {today:,.2f}")
+        if today > DAILY_LIMIT:
+            self.today_label.config(fg=DANGER_COLOR) # Red
+        else:
+            self.today_label.config(fg=SUCCESS_COLOR) # Green
+            
+        self.total_label.config(text=f"Total: Rs. {total:,.2f}")
 
     def load_table(self):
         for i in self.tree.get_children(): self.tree.delete(i)
