@@ -290,18 +290,35 @@ class ExpenseApp:
         self.total_label.config(text=f"Total: Rs. {total:,.2f}")
 
     def load_table(self):
-        for i in self.tree.get_children(): self.tree.delete(i)
+        """Loads data into the table with 2 decimal place formatting for amounts"""
+        for i in self.tree.get_children(): 
+            self.tree.delete(i)
+            
         f_cat = self.filter_var.get()
         query = self.search_var.get().lower()
 
         if os.path.exists(FILENAME):
             with open(FILENAME, 'r') as f:
-                rows = list(csv.reader(f))[1:]
+                reader = csv.reader(f)
+                rows = list(reader)[1:] # Skip header
+                
                 for r in reversed(rows):
+                    # Filter logic
                     match_cat = (not f_cat or f_cat == "All Categories" or r[1] == f_cat)
                     match_search = (not query or query in r[2].lower() or query in r[1].lower())
+                    
                     if match_cat and match_search:
-                        self.tree.insert("", tk.END, values=r)
+                        # --- FORMATTING LOGIC ---
+                        # Create a copy of the row to avoid modifying original data
+                        display_row = list(r) 
+                        try:
+                            # Convert amount (index 3) to float and format to 2 decimals
+                            amount_val = float(r[3])
+                            display_row[3] = f"{amount_val:.2f}" 
+                        except (ValueError, IndexError):
+                            pass # Keep original if it's not a valid number
+                            
+                        self.tree.insert("", tk.END, values=display_row)
 
     def update_filter_list(self):
         cats = set()
