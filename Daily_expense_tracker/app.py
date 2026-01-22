@@ -320,23 +320,84 @@ class ExpenseApp:
             except PermissionError: messagebox.showerror("Lock", "Close Excel first.")
 
     def open_dashboard(self):
-        if not os.path.exists(FILENAME): return
+        BG_COLOR = "#f4f7f6" if self.current_theme == "light" else "#2c3e50"
+        if not os.path.exists(FILENAME):
+            return
+
         cat_data, daily_data = {}, {}
+
         with open(FILENAME, 'r') as f:
             for r in csv.DictReader(f):
                 try:
-                    amt = float(r["Amount"]); d = r["DateTime"].split(" ")[0]
+                    amt = float(r["Amount"])
+                    d = r["DateTime"].split(" ")[0]
                     cat_data[r["Category"]] = cat_data.get(r["Category"], 0) + amt
                     daily_data[d] = daily_data.get(d, 0) + amt
-                except: continue
-        if not cat_data: return
-        win = tk.Toplevel(self.root); win.title("Stats")
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-        ax1.pie(cat_data.values(), labels=cat_data.keys(), autopct='%1.1f%%'); ax1.set_title("By Category")
-        dates = sorted(daily_data.keys())[-7:]; vals = [daily_data[x] for x in dates]
-        ax2.bar(dates, vals, color=[DANGER_COLOR if v > self.daily_limit else INFO_COLOR for v in vals])
-        ax2.axhline(self.daily_limit, color="red", linestyle="--")
-        plt.xticks(rotation=45); FigureCanvasTkAgg(fig, master=win).get_tk_widget().pack()
+                except:
+                    continue
+
+        if not cat_data:
+            return
+
+        # ----- Dashboard Window -----
+        win = tk.Toplevel(self.root)
+        win.title("Expense Dashboard")
+        win.geometry("1000x600")
+        win.configure(bg=BG_COLOR)
+
+        # ----- Matplotlib Styling -----
+        plt.style.use("default")
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 5))
+        fig.patch.set_facecolor(BG_COLOR)
+
+        # ----- Donut Chart (Category-wise) -----
+        wedges, texts, autotexts = ax1.pie(
+            cat_data.values(),
+            labels=cat_data.keys(),
+            autopct='%1.1f%%',
+            startangle=140,
+            textprops={'fontsize': 9}
+        )
+        centre_circle = plt.Circle((0, 0), 0.70, fc=BG_COLOR)
+        ax1.add_artist(centre_circle)
+
+        ax1.set_title("Expenses by Category", fontsize=12, fontweight="bold")
+        ax1.axis('equal')
+
+        # ----- Bar Chart (Last 7 Days) -----
+        dates = sorted(daily_data.keys())[-7:]
+        vals = [daily_data[x] for x in dates]
+
+        bar_colors = [
+            DANGER_COLOR if v > self.daily_limit else INFO_COLOR
+            for v in vals
+        ]
+
+        bars = ax2.bar(dates, vals, color=bar_colors)
+        ax2.axhline(
+            self.daily_limit,
+            color=DANGER_COLOR,
+            linestyle="--",
+            linewidth=1,
+            label="Daily Limit"
+        )
+
+        # Add values on top of each bar
+        ax2.bar_label(bars, labels=[f"{v:.2f}" for v in vals], padding=3, fontsize=9, color="#333")
+
+        ax2.set_title("Last 7 Days Spending", fontsize=12, fontweight="bold")
+        ax2.set_ylabel("Amount")
+        ax2.grid(axis="y", linestyle="--", alpha=0.5)
+        ax2.legend()
+        ax2.tick_params(axis='x', rotation=45)
+
+        plt.tight_layout()
+
+        # ----- Embed in Tkinter -----
+        canvas = FigureCanvasTkAgg(fig, master=win)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill="both", expand=True, padx=10, pady=10)
+
 
     def download_last_month_report(self): messagebox.showinfo("Export", "CSV Exported.")
 
