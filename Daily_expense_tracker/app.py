@@ -138,6 +138,10 @@ class ExpenseApp:
                                         bg=self.colors["bg"], fg=self.colors["fg"], padx=15, pady=15)
         self.summary_box.pack(side=tk.RIGHT, fill=tk.BOTH)
 
+        # --- ADD THIS REFRESH BUTTON ---
+        tk.Button(self.summary_box, text="🔄 Refresh Data", command=self.refresh_ui, 
+                  bg=INFO_COLOR, fg="white", font=FONT_BOLD).pack(fill=tk.X, pady=5)
+
         tk.Button(self.summary_box, text="📊 Open Dashboard", command=self.open_dashboard, bg=DASHBOARD_COLOR, fg="white", font=FONT_BOLD).pack(fill=tk.X, pady=5)
         
         self.today_label = tk.Label(self.summary_box, text="Today: Rs. 0.00", font=FONT_BOLD, bg=self.colors["bg"])
