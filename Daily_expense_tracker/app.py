@@ -199,6 +199,11 @@ class ExpenseApp:
 
         # Reports Group
         tk.Label(self.sett_container, text="Data Export:", font=FONT_BOLD, bg=self.colors["bg"], fg=self.colors["fg"]).pack(anchor="w", pady=(30, 0))
+
+        tk.Button(self.sett_container, text="📂 Open CSV in Excel", 
+                  command=self.open_csv_in_excel, width=25, 
+                  bg=INFO_COLOR, fg="white", font=FONT_BOLD).pack(anchor="w", pady=5)
+        
         tk.Button(self.sett_container, text="📄 Export Last Month CSV", command=self.download_last_month_report, width=25).pack(anchor="w", pady=5)
         tk.Button(self.sett_container, text="PDF Export (Current Month)", command=self.download_selected_month_pdf, width=25).pack(anchor="w", pady=5)
 
@@ -377,6 +382,23 @@ class ExpenseApp:
 
     def download_selected_month_pdf(self):
         messagebox.showinfo("Export", "PDF Report generated in local folder.")
+
+    def open_csv_in_excel(self):
+        """Opens the CSV file in the system's default spreadsheet application."""
+        if os.path.exists(FILENAME):
+            try:
+                # For Windows
+                if os.name == 'nt':
+                    os.startfile(FILENAME)
+                # For macOS/Linux
+                else:
+                    import subprocess
+                    opener = "open" if os.uname().sysname == "Darwin" else "xdg-open"
+                    subprocess.call([opener, FILENAME])
+            except Exception as e:
+                messagebox.showerror("Error", f"Could not open file: {e}")
+        else:
+            messagebox.showerror("Error", "CSV file not found. Please add an expense first.")
 
 if __name__ == "__main__":
     if not os.path.exists(FILENAME):
