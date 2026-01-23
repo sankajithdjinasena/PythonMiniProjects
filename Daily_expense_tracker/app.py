@@ -399,8 +399,59 @@ class ExpenseApp:
         canvas.get_tk_widget().pack(fill="both", expand=True, padx=10, pady=10)
 
 
-    def download_last_month_report(self): messagebox.showinfo("Export", "CSV Exported.")
+    def download_last_month_report(self):
+            if not os.path.exists(FILENAME):
+                messagebox.showerror("Error", "No data found to export.")
+                return
 
+            # 1. Calculate the Last Month and Year
+            today = datetime.now()
+            # Logic to handle January (if today is Jan, last month is Dec of previous year)
+            last_month = today.month - 1 if today.month > 1 else 12
+            year_of_report = today.year if today.month > 1 else today.year - 1
+            
+            month_name = datetime(year_of_report, last_month, 1).strftime('%B')
+            default_filename = f"Expense_Report_{month_name}_{year_of_report}.csv"
+
+            # 2. Ask user where to save the file
+            file_path = filedialog.asksaveasfilename(
+                defaultextension=".csv",
+                filetypes=[("CSV files", "*.csv")],
+                initialfile=default_filename,
+                title="Save Last Month's Report"
+            )
+
+            if not file_path:
+                return  # User cancelled
+
+            # 3. Filter data and write to new file
+            try:
+                report_data = []
+                target_prefix = f"{year_of_report}-{last_month:02d}" # Format: YYYY-MM
+
+                with open(FILENAME, 'r') as f:
+                    reader = csv.reader(f)
+                    header = next(reader)
+                    report_data.append(header) # Keep the CSV headers
+                    
+                    for row in reader:
+                        # row[0] is the DateTime column (format: 2026-01-23 14:43)
+                        if row[0].startswith(target_prefix):
+                            report_data.append(row)
+
+                if len(report_data) <= 1:
+                    messagebox.showwarning("No Data", f"No expenses found for {month_name} {year_of_report}.")
+                    return
+
+                with open(file_path, 'w', newline='', encoding='utf-8') as f:
+                    writer = csv.writer(f)
+                    writer.writerows(report_data)
+
+                messagebox.showinfo("Export Success", f"Report saved successfully to:\n{file_path}")
+                
+            except Exception as e:
+                messagebox.showerror("Export Error", f"An error occurred: {e}")
+                
 if __name__ == "__main__":
     if not os.path.exists(FILENAME):
         with open(FILENAME, 'w', newline='') as f:
