@@ -200,8 +200,11 @@ class ExpenseApp:
         tk.Label(self.sett_container, text="Data Management:", font=FONT_BOLD, bg=self.colors["bg"], fg=self.colors["fg"]).pack(anchor="w", pady=(30, 0))
         # --- NEW: Open CSV in Excel Button ---
         tk.Button(self.sett_container, text="📂 Open Database in Excel", command=self.open_csv_in_excel, bg=SUCCESS_COLOR, fg="white", width=25).pack(anchor="w", pady=5)
-        tk.Button(self.sett_container, text="📄 Export CSV Report", command=self.download_last_month_report, width=25).pack(anchor="w", pady=5)
 
+        # Changed these to call the selection window first
+        tk.Button(self.sett_container, text="📄 Export Monthly CSV", command=lambda: self.open_export_selector("CSV"), width=25).pack(anchor="w", pady=5)
+        tk.Button(self.sett_container, text="📕 Export Monthly PDF", command=lambda: self.open_export_selector("PDF"), bg=DASHBOARD_COLOR, fg="white", width=25).pack(anchor="w", pady=5)
+        
     # --- LOGIC METHODS ---
     def open_csv_in_excel(self):
         if os.path.exists(FILENAME):
@@ -397,61 +400,126 @@ class ExpenseApp:
         canvas = FigureCanvasTkAgg(fig, master=win)
         canvas.draw()
         canvas.get_tk_widget().pack(fill="both", expand=True, padx=10, pady=10)
+    
+    def open_export_selector(self, export_type):
+        """Opens a popup to select Month and Year for export"""
+        win = tk.Toplevel(self.root)
+        win.title(f"Export {export_type} Report")
+        win.geometry("300x250")
+        win.configure(bg=self.colors["bg"])
+        win.grab_set() # Focus on this window
 
+        tk.Label(win, text="Select Month & Year", font=FONT_BOLD, bg=self.colors["bg"], fg=self.colors["fg"]).pack(pady=10)
 
-    def download_last_month_report(self):
-            if not os.path.exists(FILENAME):
-                messagebox.showerror("Error", "No data found to export.")
+        # Month Selection
+        months = ["January", "February", "March", "April", "May", "June", 
+                  "July", "August", "September", "October", "November", "December"]
+        month_cb = ttk.Combobox(win, values=months, state="readonly")
+        month_cb.set(datetime.now().strftime("%B")) # Default to current month
+        month_cb.pack(pady=5)
+
+        # Year Selection
+        current_year = datetime.now().year
+        years = [str(y) for y in range(current_year - 2, current_year + 3)]
+        year_cb = ttk.Combobox(win, values=years, state="readonly")
+        year_cb.set(str(current_year))
+        year_cb.pack(pady=5)
+
+        def proceed_export():
+            m_idx = months.index(month_cb.get()) + 1
+            year = year_cb.get()
+            win.destroy()
+            if export_type == "CSV":
+                self.process_export(m_idx, year, "csv")
+            else:
+                self.process_export(m_idx, year, "pdf")
+
+        tk.Button(win, text="Generate Report", command=proceed_export, bg=SUCCESS_COLOR, fg="white", font=FONT_BOLD).pack(pady=20)
+
+    def process_export(self, month, year, file_type):
+        if not os.path.exists(FILENAME):
+            messagebox.showerror("Error", "Database file not found.")
+            return
+        
+        month_int = int(month)
+        year_int = int(year)
+        month_name = datetime(year_int, month_int, 1).strftime('%B')
+        
+        filtered_rows = []
+        total_spent = 0.0
+
+        try:
+            with open(FILENAME, 'r') as f:
+                reader = csv.reader(f)
+                header = next(reader)
+                
+                for row in reader:
+                    date_str = row[0].split(" ")[0] # Get just the date part, ignore time
+                    parsed_date = None
+                    
+                    # Try to parse the different formats found in your image
+                    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%n/%j/%Y"):
+                        try:
+                            parsed_date = datetime.strptime(date_str, fmt)
+                            break 
+                        except ValueError:
+                            continue
+                    
+                    # If parsing worked, check if it matches the selected Month and Year
+                    if parsed_date and parsed_date.month == month_int and parsed_date.year == year_int:
+                        filtered_rows.append(row)
+                        total_spent += float(row[3])
+
+            if not filtered_rows:
+                messagebox.showwarning("No Data", f"No records found for {month_name} {year}.")
                 return
 
-            # 1. Calculate the Last Month and Year
-            today = datetime.now()
-            # Logic to handle January (if today is Jan, last month is Dec of previous year)
-            last_month = today.month - 1 if today.month > 1 else 12
-            year_of_report = today.year if today.month > 1 else today.year - 1
-            
-            month_name = datetime(year_of_report, last_month, 1).strftime('%B')
-            default_filename = f"Expense_Report_{month_name}_{year_of_report}.csv"
-
-            # 2. Ask user where to save the file
+            # --- Save File Dialog ---
+            ext = f".{file_type}"
             file_path = filedialog.asksaveasfilename(
-                defaultextension=".csv",
-                filetypes=[("CSV files", "*.csv")],
-                initialfile=default_filename,
-                title="Save Last Month's Report"
+                defaultextension=ext,
+                filetypes=[(f"{file_type.upper()} files", f"*{ext}")],
+                initialfile=f"Report_{month_name}_{year}{ext}"
             )
+            
+            if not file_path: return
 
-            if not file_path:
-                return  # User cancelled
-
-            # 3. Filter data and write to new file
-            try:
-                report_data = []
-                target_prefix = f"{year_of_report}-{last_month:02d}" # Format: YYYY-MM
-
-                with open(FILENAME, 'r') as f:
-                    reader = csv.reader(f)
-                    header = next(reader)
-                    report_data.append(header) # Keep the CSV headers
-                    
-                    for row in reader:
-                        # row[0] is the DateTime column (format: 2026-01-23 14:43)
-                        if row[0].startswith(target_prefix):
-                            report_data.append(row)
-
-                if len(report_data) <= 1:
-                    messagebox.showwarning("No Data", f"No expenses found for {month_name} {year_of_report}.")
-                    return
-
+            if file_type == "csv":
                 with open(file_path, 'w', newline='', encoding='utf-8') as f:
                     writer = csv.writer(f)
-                    writer.writerows(report_data)
+                    writer.writerow(header)
+                    writer.writerows(filtered_rows)
+            else:
+                self.generate_pdf_report(file_path, month_name, year, filtered_rows, total_spent)
 
-                messagebox.showinfo("Export Success", f"Report saved successfully to:\n{file_path}")
-                
-            except Exception as e:
-                messagebox.showerror("Export Error", f"An error occurred: {e}")
-                
+            messagebox.showinfo("Success", f"Report saved to:\n{file_path}")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"An error occurred: {e}")
+
+    def generate_pdf_report(self, path, month_name, year, rows, total):
+        """Helper to handle PDF generation styling"""
+        doc = SimpleDocTemplate(path, pagesize=A4)
+        elements = []
+        styles = getSampleStyleSheet()
+        
+        elements.append(Paragraph(f"Expense Report: {month_name} {year}", styles['Title']))
+        elements.append(Paragraph(f"<b>Total Spending: Rs. {total:,.2f}</b>", styles['Normal']))
+        elements.append(Paragraph("<br/><br/>", styles['Normal']))
+        
+        # PDF Table
+        data = [["Date", "Category", "Description", "Amount"]] + rows
+        table = Table(data, colWidths=[110, 90, 200, 80])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#34495e")),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.whitesmoke, colors.white]),
+            ('ALIGN', (-1, 0), (-1, -1), 'RIGHT')
+        ]))
+        elements.append(table)
+        doc.build(elements)
+
 if __name__ == "__main__":
     if not os.path.exists(FILENAME):
         with open(FILENAME, 'w', newline='') as f:
