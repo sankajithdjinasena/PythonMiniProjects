@@ -27,6 +27,9 @@ Each project is simple, focused, and beginner-friendly, making this repo perfect
 pythonminiprojects/
 │
 ├── Daily_expenses_tracker/
+|   ├── README.md
+|   ├── Daily Expenses Tracker.bat
 │   └── app.py
 │
-└── ...
+├── Daily Expenses Tracker.bat
+└── README.md
