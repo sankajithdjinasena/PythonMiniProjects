@@ -44,11 +44,23 @@ class CSVAnalyzerApp:
         )
         self.export_btn.pack(side="left", padx=10)
 
-        # ===== Output Area =====
+        # ===== Output Area (Scrollable) =====
+        output_frame = tk.Frame(root)
+        output_frame.pack(fill="x", padx=10, pady=5)
+
+        output_scroll = tk.Scrollbar(output_frame)
+        output_scroll.pack(side="right", fill="y")
+
         self.output = tk.Text(
-            root, height=10, wrap="word", font=("Consolas", 11)
+            output_frame,
+            height=10,
+            wrap="word",
+            font=("Consolas", 11),
+            yscrollcommand=output_scroll.set
         )
-        self.output.pack(fill="x", padx=10, pady=5)
+        self.output.pack(side="left", fill="x", expand=True)
+
+        output_scroll.config(command=self.output.yview)
 
         # ===== Table Frame =====
         table_frame = tk.Frame(root)
