@@ -111,6 +111,51 @@ class CSVAnalyzerApp:
         )
         outlier_btn.pack(side="left", padx=10)
 
+        # ===== Data Cleaning Controls =====
+        clean_frame = tk.Frame(self.root, bg="#ecf0f1")
+        clean_frame.pack(fill="x", padx=10, pady=5)
+
+        tk.Label(
+            clean_frame,
+            text="Select Column:",
+            bg="#ecf0f1"
+        ).pack(side="left", padx=5)
+
+        self.clean_column = ttk.Combobox(
+            clean_frame,
+            state="readonly",
+            width=25
+        )
+        self.clean_column.pack(side="left", padx=5)
+
+        tk.Label(
+            clean_frame,
+            text="Missing Value Method:",
+            bg="#ecf0f1"
+        ).pack(side="left", padx=5)
+
+        self.missing_method = ttk.Combobox(
+            clean_frame,
+            state="readonly",
+            width=15,
+            values=["Mean", "Median", "Mode", "Drop Rows"]
+        )
+        self.missing_method.pack(side="left", padx=5)
+        self.missing_method.current(0)
+
+        tk.Button(
+            clean_frame,
+            text="Apply Missing Value Handling",
+            command=self.handle_missing_values
+        ).pack(side="left", padx=10)
+
+        tk.Button(
+            clean_frame,
+            text="Remove Outliers",
+            command=self.remove_outliers
+        ).pack(side="left", padx=10)
+
+
 
     def load_csv(self):
         file_path = filedialog.askopenfilename(
@@ -156,6 +201,15 @@ class CSVAnalyzerApp:
 
         if numeric_cols:
             self.column_select.current(0)
+
+        # Initialize cleaned dataframe
+        self.cleaned_df = self.df.copy()
+
+        # Populate column selectors
+        all_columns = self.df.columns.tolist()
+        self.clean_column["values"] = all_columns
+        self.clean_column.current(0)
+
 
 
     def show_table(self, dataframe):
@@ -206,6 +260,73 @@ class CSVAnalyzerApp:
             "Outlier Result",
             f"Column: {col}\nOutliers detected: {len(outliers)}"
         )
+
+    def handle_missing_values(self):
+        if self.cleaned_df is None:
+            return
+
+        col = self.clean_column.get()
+        method = self.missing_method.get()
+
+        if col == "":
+            return
+
+        if method == "Mean":
+            if pd.api.types.is_numeric_dtype(self.cleaned_df[col]):
+                self.cleaned_df[col].fillna(self.cleaned_df[col].mean(), inplace=True)
+            else:
+                messagebox.showwarning("Warning", "Mean can be applied only to numeric columns.")
+                return
+
+        elif method == "Median":
+            if pd.api.types.is_numeric_dtype(self.cleaned_df[col]):
+                self.cleaned_df[col].fillna(self.cleaned_df[col].median(), inplace=True)
+            else:
+                messagebox.showwarning("Warning", "Median can be applied only to numeric columns.")
+                return
+
+        elif method == "Mode":
+            self.cleaned_df[col].fillna(self.cleaned_df[col].mode()[0], inplace=True)
+
+        elif method == "Drop Rows":
+            self.cleaned_df.dropna(subset=[col], inplace=True)
+
+        self.refresh_after_cleaning(f"Missing values handled for column: {col}")
+
+    def remove_outliers(self):
+        if self.cleaned_df is None:
+            return
+
+        col = self.clean_column.get()
+
+        if not pd.api.types.is_numeric_dtype(self.cleaned_df[col]):
+            messagebox.showwarning("Warning", "Outlier removal works only for numeric columns.")
+            return
+
+        data = self.cleaned_df[col].dropna()
+
+        Q1 = data.quantile(0.25)
+        Q3 = data.quantile(0.75)
+        IQR = Q3 - Q1
+
+        lower = Q1 - 1.5 * IQR
+        upper = Q3 + 1.5 * IQR
+
+        before = len(self.cleaned_df)
+        self.cleaned_df = self.cleaned_df[
+            (self.cleaned_df[col] >= lower) & (self.cleaned_df[col] <= upper)
+        ]
+        after = len(self.cleaned_df)
+
+        self.refresh_after_cleaning(
+            f"Outliers removed from {col}. Rows removed: {before - after}"
+        )
+
+    def refresh_after_cleaning(self, message):
+        self.output.insert(tk.END, f"\n{message}\n")
+        self.show_table(self.cleaned_df.head(10))
+        self.export_btn.config(state="normal")
+
 
 
 if __name__ == "__main__":
