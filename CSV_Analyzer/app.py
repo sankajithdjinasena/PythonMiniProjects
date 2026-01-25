@@ -1,6 +1,8 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import pandas as pd
+import matplotlib.pyplot as plt
+
 
 class CSVAnalyzerApp:
     def __init__(self, root):
@@ -84,6 +86,32 @@ class CSVAnalyzerApp:
             xscrollcommand=h_scroll.set
         )
 
+        # ===== Outlier Controls =====
+        outlier_frame = tk.Frame(root, bg="#ecf0f1")
+        outlier_frame.pack(fill="x", padx=10, pady=5)
+
+        tk.Label(
+            outlier_frame,
+            text="Select Column for Outlier Detection:",
+            bg="#ecf0f1",
+            font=("Segoe UI", 10)
+        ).pack(side="left", padx=5)
+
+        self.column_select = ttk.Combobox(
+            outlier_frame,
+            state="readonly",
+            width=30
+        )
+        self.column_select.pack(side="left", padx=5)
+
+        outlier_btn = tk.Button(
+            outlier_frame,
+            text="Show Outliers (Boxplot)",
+            command=self.show_outliers
+        )
+        outlier_btn.pack(side="left", padx=10)
+
+
     def load_csv(self):
         file_path = filedialog.askopenfilename(
             filetypes=[("CSV Files", "*.csv")]
@@ -122,6 +150,14 @@ class CSVAnalyzerApp:
 
         self.clean_btn.config(state="normal")
 
+        # Populate numeric columns only
+        numeric_cols = self.df.select_dtypes(include="number").columns.tolist()
+        self.column_select["values"] = numeric_cols
+
+        if numeric_cols:
+            self.column_select.current(0)
+
+
     def show_table(self, dataframe):
         # Clear existing table
         self.tree.delete(*self.tree.get_children())
@@ -136,6 +172,41 @@ class CSVAnalyzerApp:
         # Insert rows
         for _, row in dataframe.iterrows():
             self.tree.insert("", "end", values=list(row))
+
+    def show_outliers(self):
+        if self.df is None:
+            messagebox.showwarning("Warning", "Please load a CSV file first.")
+            return
+
+        col = self.column_select.get()
+        if not col:
+            messagebox.showwarning("Warning", "Please select a column.")
+            return
+
+        data = self.df[col].dropna()
+
+        # IQR method
+        Q1 = data.quantile(0.25)
+        Q3 = data.quantile(0.75)
+        IQR = Q3 - Q1
+
+        lower = Q1 - 1.5 * IQR
+        upper = Q3 + 1.5 * IQR
+
+        outliers = data[(data < lower) | (data > upper)]
+
+        # Boxplot
+        plt.figure()
+        plt.boxplot(data, vert=True)
+        plt.title(f"Boxplot for {col}")
+        plt.ylabel(col)
+        plt.show()
+
+        messagebox.showinfo(
+            "Outlier Result",
+            f"Column: {col}\nOutliers detected: {len(outliers)}"
+        )
+
 
 if __name__ == "__main__":
     root = tk.Tk()
