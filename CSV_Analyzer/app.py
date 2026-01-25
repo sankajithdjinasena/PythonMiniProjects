@@ -1,12 +1,12 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, ttk
 import pandas as pd
 
 class CSVAnalyzerApp:
     def __init__(self, root):
         self.root = root
         self.root.title("CSV Data Analyzer")
-        self.root.geometry("1000x650")
+        self.root.geometry("1100x700")
         self.root.configure(bg="#f4f6f7")
 
         self.df = None
@@ -30,36 +30,47 @@ class CSVAnalyzerApp:
         controls.pack(fill="x", padx=10, pady=10)
 
         upload_btn = tk.Button(
-            controls,
-            text="Upload CSV",
-            width=15,
-            command=self.load_csv
+            controls, text="Upload CSV", width=15, command=self.load_csv
         )
         upload_btn.pack(side="left", padx=10)
 
         self.clean_btn = tk.Button(
-            controls,
-            text="Clean Data",
-            width=15,
-            state="disabled"
+            controls, text="Clean Data", width=15, state="disabled"
         )
         self.clean_btn.pack(side="left", padx=10)
 
         self.export_btn = tk.Button(
-            controls,
-            text="Export Cleaned CSV",
-            width=18,
-            state="disabled"
+            controls, text="Export Cleaned CSV", width=18, state="disabled"
         )
         self.export_btn.pack(side="left", padx=10)
 
         # ===== Output Area =====
         self.output = tk.Text(
-            root,
-            wrap="word",
-            font=("Consolas", 11)
+            root, height=10, wrap="word", font=("Consolas", 11)
         )
-        self.output.pack(fill="both", expand=True, padx=10, pady=10)
+        self.output.pack(fill="x", padx=10, pady=5)
+
+        # ===== Table Frame =====
+        table_frame = tk.Frame(root)
+        table_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        self.tree = ttk.Treeview(table_frame, show="headings")
+        self.tree.pack(side="left", fill="both", expand=True)
+
+        v_scroll = ttk.Scrollbar(
+            table_frame, orient="vertical", command=self.tree.yview
+        )
+        v_scroll.pack(side="right", fill="y")
+
+        h_scroll = ttk.Scrollbar(
+            root, orient="horizontal", command=self.tree.xview
+        )
+        h_scroll.pack(fill="x")
+
+        self.tree.configure(
+            yscrollcommand=v_scroll.set,
+            xscrollcommand=h_scroll.set
+        )
 
     def load_csv(self):
         file_path = filedialog.askopenfilename(
@@ -75,10 +86,11 @@ class CSVAnalyzerApp:
             return
 
         self.output.delete(1.0, tk.END)
-        self.output.insert(tk.END, "CSV loaded successfully!\n\n")
 
-        self.output.insert(tk.END, f"Rows: {self.df.shape[0]}\n")
-        self.output.insert(tk.END, f"Columns: {self.df.shape[1]}\n\n")
+        self.output.insert(tk.END, "CSV loaded successfully!\n\n")
+        self.output.insert(
+            tk.END, f"Rows: {self.df.shape[0]} | Columns: {self.df.shape[1]}\n\n"
+        )
 
         self.output.insert(tk.END, "Columns:\n")
         for col in self.df.columns:
@@ -90,10 +102,28 @@ class CSVAnalyzerApp:
         self.output.insert(tk.END, "Duplicate Rows:\n")
         self.output.insert(tk.END, f"{self.df.duplicated().sum()}\n\n")
 
-        self.output.insert(tk.END, "Statistical summary:\n")
-        self.output.insert(tk.END, f"{self.df.describe()}\n\n")
+        self.output.insert(tk.END, "Statistical Summary:\n")
+        self.output.insert(tk.END, f"{self.df.describe()}\n")
+
+        # Show first 10 rows in table
+        self.show_table(self.df.head(10))
 
         self.clean_btn.config(state="normal")
+
+    def show_table(self, dataframe):
+        # Clear existing table
+        self.tree.delete(*self.tree.get_children())
+
+        # Set columns
+        self.tree["columns"] = list(dataframe.columns)
+
+        for col in dataframe.columns:
+            self.tree.heading(col, text=col)
+            self.tree.column(col, width=120, anchor="center")
+
+        # Insert rows
+        for _, row in dataframe.iterrows():
+            self.tree.insert("", "end", values=list(row))
 
 if __name__ == "__main__":
     root = tk.Tk()
