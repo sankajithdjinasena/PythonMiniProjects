@@ -30,6 +30,12 @@ pythonminiprojects/
 |   ├── README.md
 |   ├── Daily Expenses Tracker.bat
 │   └── app.py
+|
+├── CSV_Analyzer/
+|   ├── README.md
+|   ├── CSV analyzer.bat
+│   └── app.py
 │
+├── CSV Analyzer.bat.bat
 ├── Daily Expenses Tracker.bat
 └── README.md
