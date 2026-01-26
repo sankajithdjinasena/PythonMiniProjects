@@ -5,8 +5,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import seaborn as sns
-from pandastable import Table
 import threading
+from datetime import datetime
 
 # Set seaborn style for better visuals
 sns.set_style("whitegrid")
@@ -87,10 +87,10 @@ class EnhancedCSVAnalyzerApp:
         # Sidebar Menu
         menu_items = [
             ("📁 Load Data", self.load_csv),
+            ("🏠 Dashboard", self.show_dashboard),
             ("🧹 Data Cleaning", self.show_cleaning_panel),
             ("📈 Visualizations", self.show_visualization_panel),
             ("📊 Statistics", self.show_statistics_panel),
-            ("⚙️ Settings", self.show_settings_panel),
             ("💾 Export Data", self.export_cleaned_csv)
         ]
         
@@ -260,6 +260,208 @@ class EnhancedCSVAnalyzerApp:
         upload_btn.bind("<Enter>", lambda e: upload_btn.config(bg=self.colors['secondary']))
         upload_btn.bind("<Leave>", lambda e: upload_btn.config(bg=self.colors['primary']))
     
+    def show_dashboard(self):
+        if self.df is None:
+            self.show_message("No Data", "Please load a CSV file first.", "info")
+            return
+        
+        self.clear_content()
+        
+        dashboard_card = tk.Frame(self.card_container, bg="white", padx=20, pady=20)
+        dashboard_card.pack(fill="both", expand=True)
+        
+        tk.Label(
+            dashboard_card,
+            text="🏠 Data Dashboard",
+            font=("Segoe UI", 16, "bold"),
+            bg="white",
+            fg=self.colors['dark']
+        ).pack(anchor="w", pady=(0, 20))
+        
+        # Dashboard metrics
+        metrics_frame = tk.Frame(dashboard_card, bg="white")
+        metrics_frame.pack(fill="x", pady=(0, 20))
+        
+        metrics = [
+            ("📊 Total Rows", f"{self.cleaned_df.shape[0]:,}", "#4361ee"),
+            ("📈 Total Columns", f"{self.cleaned_df.shape[1]}", "#7209b7"),
+            ("⚠️ Missing Values", f"{self.cleaned_df.isnull().sum().sum():,}", "#f8961e"),
+            ("🔍 Duplicate Rows", f"{self.cleaned_df.duplicated().sum():,}", "#f72585"),
+            ("💾 Memory Usage", f"{self.cleaned_df.memory_usage(deep=True).sum() / 1024 / 1024:.2f} MB", "#4cc9f0"),
+            ("📅 Last Updated", datetime.now().strftime("%Y-%m-%d %H:%M"), "#38b000")
+        ]
+        
+        for i, (title, value, color) in enumerate(metrics):
+            metric_card = tk.Frame(
+                metrics_frame,
+                bg="#f8fafc",
+                relief="groove",
+                borderwidth=1
+            )
+            metric_card.grid(row=i//3, column=i%3, padx=10, pady=10, sticky="nsew")
+            
+            tk.Label(
+                metric_card,
+                text=title,
+                font=("Segoe UI", 10),
+                bg="#f8fafc",
+                fg="#718096"
+            ).pack(anchor="w", padx=15, pady=(15, 5))
+            
+            tk.Label(
+                metric_card,
+                text=value,
+                font=("Segoe UI", 16, "bold"),
+                bg="#f8fafc",
+                fg=color
+            ).pack(anchor="w", padx=15, pady=(0, 15))
+            
+            metrics_frame.grid_columnconfigure(i%3, weight=1)
+        
+        # Quick Actions
+        actions_frame = tk.Frame(dashboard_card, bg="#f1f5f9", padx=20, pady=20)
+        actions_frame.pack(fill="x", pady=(0, 20))
+        
+        tk.Label(
+            actions_frame,
+            text="⚡ Quick Actions",
+            font=("Segoe UI", 14, "bold"),
+            bg="#f1f5f9",
+            fg=self.colors['dark']
+        ).pack(anchor="w", pady=(0, 15))
+        
+        action_buttons = [
+            ("Remove All Missing", self.remove_all_missing),
+            ("Remove All Duplicates", self.remove_all_duplicates),
+            ("View Top 10 Rows", self.show_top_rows),
+            ("Generate Summary", self.show_quick_summary)
+        ]
+        
+        button_frame = tk.Frame(actions_frame, bg="#f1f5f9")
+        button_frame.pack()
+        
+        for text, command in action_buttons:
+            btn = tk.Button(
+                button_frame,
+                text=text,
+                font=("Segoe UI", 10),
+                bg=self.colors['primary'],
+                fg="white",
+                padx=20,
+                pady=8,
+                cursor="hand2",
+                relief="flat",
+                command=command
+            )
+            btn.pack(side="left", padx=10, pady=5)
+            btn.bind("<Enter>", lambda e, b=btn: b.config(bg=self.colors['secondary']))
+            btn.bind("<Leave>", lambda e, b=btn: b.config(bg=self.colors['primary']))
+        
+        # Data Preview
+        preview_frame = tk.Frame(dashboard_card, bg="white")
+        preview_frame.pack(fill="both", expand=True)
+        
+        tk.Label(
+            preview_frame,
+            text="👁️ Quick Data Preview",
+            font=("Segoe UI", 14, "bold"),
+            bg="white",
+            fg=self.colors['dark']
+        ).pack(anchor="w", pady=(0, 15))
+        
+        # Create table for quick preview
+        table_frame = tk.Frame(preview_frame, bg="white")
+        table_frame.pack(fill="both", expand=True)
+        
+        # Add scrollbars
+        h_scrollbar = ttk.Scrollbar(table_frame, orient="horizontal")
+        v_scrollbar = ttk.Scrollbar(table_frame, orient="vertical")
+        
+        self.dash_tree = ttk.Treeview(
+            table_frame,
+            show="headings",
+            xscrollcommand=h_scrollbar.set,
+            yscrollcommand=v_scrollbar.set,
+            height=8
+        )
+        
+        h_scrollbar.config(command=self.dash_tree.xview)
+        v_scrollbar.config(command=self.dash_tree.yview)
+        
+        h_scrollbar.pack(side="bottom", fill="x")
+        v_scrollbar.pack(side="right", fill="y")
+        self.dash_tree.pack(side="left", fill="both", expand=True)
+        
+        # Configure treeview style
+        style = ttk.Style()
+        style.theme_use("clam")
+        style.configure(
+            "Treeview",
+            background="white",
+            foreground=self.colors['dark'],
+            fieldbackground="white",
+            borderwidth=0,
+            font=('Segoe UI', 9)
+        )
+        style.configure(
+            "Treeview.Heading",
+            background="#edf2f7",
+            foreground=self.colors['dark'],
+            font=('Segoe UI', 9, 'bold'),
+            borderwidth=1,
+            relief="flat"
+        )
+        
+        # Populate table with first 10 rows
+        preview_df = self.cleaned_df.head(10)
+        self.dash_tree["columns"] = list(preview_df.columns)
+        
+        for col in preview_df.columns:
+            self.dash_tree.heading(col, text=col)
+            self.dash_tree.column(col, width=100, anchor="center", minwidth=50)
+        
+        for _, row in preview_df.iterrows():
+            self.dash_tree.insert("", "end", values=list(row))
+    
+    def remove_all_missing(self):
+        original_rows = len(self.cleaned_df)
+        original_missing = self.cleaned_df.isnull().sum().sum()
+        
+        self.cleaned_df = self.cleaned_df.dropna()
+        
+        removed_rows = original_rows - len(self.cleaned_df)
+        removed_missing = original_missing - self.cleaned_df.isnull().sum().sum()
+        
+        message = (f"Removed all missing values!\n\n"
+                  f"• Removed {removed_rows} rows with missing values\n"
+                  f"• Eliminated {removed_missing} missing values\n"
+                  f"• New dataset has {len(self.cleaned_df):,} rows\n"
+                  f"• Data retained: {(len(self.cleaned_df)/original_rows*100):.1f}%")
+        
+        self.show_message("Missing Values Removed", message, "success")
+        self.show_dashboard()
+    
+    def remove_all_duplicates(self):
+        original_rows = len(self.cleaned_df)
+        duplicate_count = self.cleaned_df.duplicated().sum()
+        
+        self.cleaned_df = self.cleaned_df.drop_duplicates()
+        
+        message = (f"Removed all duplicate rows!\n\n"
+                  f"• Removed {duplicate_count} duplicate rows\n"
+                  f"• Original rows: {original_rows:,}\n"
+                  f"• New row count: {len(self.cleaned_df):,}\n"
+                  f"• Data retained: {(len(self.cleaned_df)/original_rows*100):.1f}%")
+        
+        self.show_message("Duplicates Removed", message, "success")
+        self.show_dashboard()
+    
+    def show_top_rows(self):
+        self.show_data_preview()
+    
+    def show_quick_summary(self):
+        self.show_statistics_panel()
+    
     def clear_content(self):
         for widget in self.card_container.winfo_children():
             widget.destroy()
@@ -268,6 +470,167 @@ class EnhancedCSVAnalyzerApp:
         self.status_label.config(text=message)
         self.root.update()
     
+    def show_message(self, title, message, message_type="info"):
+        """
+        Show a custom styled message box with larger size
+        message_type can be: "info", "warning", "error", "success", "question"
+        """
+        
+        # For question types, use standard messagebox with larger font
+        if message_type == "question":
+            # Create larger question dialog
+            dialog = tk.Toplevel(self.root)
+            dialog.title(title)
+            dialog.geometry("500x300")  # Larger size
+            dialog.configure(bg="white")
+            dialog.transient(self.root)
+            dialog.grab_set()
+            
+            # Center the dialog
+            dialog.update_idletasks()
+            width = dialog.winfo_width()
+            height = dialog.winfo_height()
+            x = (self.root.winfo_screenwidth() // 2) - (width // 2)
+            y = (self.root.winfo_screenheight() // 2) - (height // 2)
+            dialog.geometry(f'{width}x{height}+{x}+{y}')
+            
+            # Question icon
+            tk.Label(dialog, text="❓", font=("Segoe UI", 50), 
+                    bg="white", fg="#4361ee").pack(pady=30)
+            
+            # Title
+            tk.Label(dialog, text=title, font=("Segoe UI", 16, "bold"), 
+                    bg="white", fg="#212529").pack()
+            
+            # Message
+            tk.Label(dialog, text=message, font=("Segoe UI", 12), 
+                    bg="white", fg="#718096", wraplength=450).pack(pady=15)
+            
+            result = [None]  # Use list to store result
+            
+            # Button frame
+            button_frame = tk.Frame(dialog, bg="white")
+            button_frame.pack(pady=20)
+            
+            # Yes button
+            yes_button = tk.Button(button_frame, text="Yes",
+                                bg="#38b000", fg="white", padx=40, pady=10,
+                                font=("Segoe UI", 11, "bold"),
+                                command=lambda: self.message_button_clicked(dialog, True, result))
+            yes_button.pack(side="left", padx=20)
+            
+            # No button
+            no_button = tk.Button(button_frame, text="No",
+                                bg="#f72585", fg="white", padx=40, pady=10,
+                                font=("Segoe UI", 11, "bold"),
+                                command=lambda: self.message_button_clicked(dialog, False, result))
+            no_button.pack(side="left", padx=20)
+            
+            # Add hover effects
+            yes_button.bind("<Enter>", lambda e: yes_button.config(bg="#06d6a0"))
+            yes_button.bind("<Leave>", lambda e: yes_button.config(bg="#38b000"))
+            no_button.bind("<Enter>", lambda e: no_button.config(bg="#e63946"))
+            no_button.bind("<Leave>", lambda e: no_button.config(bg="#f72585"))
+            
+            dialog.wait_window()
+            return result[0]
+        
+        # Create custom dialog for other types
+        dialog = tk.Toplevel(self.root)
+        dialog.title(title)
+        dialog.geometry("600x350")  # Larger size
+        dialog.configure(bg="white")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # Center the dialog
+        dialog.update_idletasks()
+        width = dialog.winfo_width()
+        height = dialog.winfo_height()
+        x = (self.root.winfo_screenwidth() // 2) - (width // 2)
+        y = (self.root.winfo_screenheight() // 2) - (height // 2)
+        dialog.geometry(f'{width}x{height}+{x}+{y}')
+        
+        # Set icon and colors based on message type
+        if message_type == "success":
+            icon = "✅"
+            icon_color = "#38b000"
+            button_color = "#38b000"
+        elif message_type == "warning":
+            icon = "⚠️"
+            icon_color = "#f8961e"
+            button_color = "#f8961e"
+        elif message_type == "error":
+            icon = "❌"
+            icon_color = "#f72585"
+            button_color = "#f72585"
+        else:  # info (default)
+            icon = "ℹ️"
+            icon_color = "#4361ee"
+            button_color = "#4361ee"
+        
+        # Icon (larger)
+        tk.Label(dialog, text=icon, font=("Segoe UI", 60), 
+                bg="white", fg=icon_color).pack(pady=30)
+        
+        # Title (larger font)
+        tk.Label(dialog, text=title, font=("Segoe UI", 18, "bold"), 
+                bg="white", fg="#212529").pack(pady=(0, 10))
+        
+        # Message (larger font with more space)
+        # Split long messages into lines for better readability
+        lines = self.wrap_text(message, 70)  # Wrap at 70 characters
+        for line in lines:
+            tk.Label(dialog, text=line, font=("Segoe UI", 12), 
+                    bg="white", fg="#718096").pack()
+        
+        # OK button (larger)
+        ok_button = tk.Button(dialog, text="OK", command=dialog.destroy,
+                            bg=button_color, fg="white", padx=50, pady=25,
+                            font=("Segoe UI", 12, "bold"))
+        ok_button.pack(pady=20)
+        
+        # Add hover effect
+        ok_button.bind("<Enter>", 
+                    lambda e, b=ok_button, c=button_color: 
+                    b.config(bg=self.adjust_color(c, -30)))
+        ok_button.bind("<Leave>", 
+                    lambda e, b=ok_button, c=button_color: 
+                    b.config(bg=c))
+        
+        # Bind Enter key to close dialog
+        dialog.bind('<Return>', lambda e: dialog.destroy())
+        dialog.bind('<Escape>', lambda e: dialog.destroy())
+        
+        # Focus the OK button
+        ok_button.focus_set()
+
+    def message_button_clicked(self, dialog, value, result_store):
+        """Handle button clicks in question dialogs"""
+        result_store[0] = value
+        dialog.destroy()
+
+    def wrap_text(self, text, max_length):
+        """Wrap text into multiple lines"""
+        words = text.split()
+        lines = []
+        current_line = []
+        current_length = 0
+        
+        for word in words:
+            if current_length + len(word) + 1 <= max_length:
+                current_line.append(word)
+                current_length += len(word) + 1
+            else:
+                lines.append(" ".join(current_line))
+                current_line = [word]
+                current_length = len(word)
+        
+        if current_line:
+            lines.append(" ".join(current_line))
+        
+        return lines
+
     def load_csv(self):
         self.update_status("Selecting file...")
         
@@ -297,7 +660,8 @@ class EnhancedCSVAnalyzerApp:
                 
                 self.root.after(0, self.on_data_loaded, path)
             except Exception as e:
-                self.root.after(0, self.show_error, f"Error loading file:\n{str(e)}")
+                self.root.after(0, self.show_message, "Error", 
+                              f"Error loading file:\n{str(e)}", "error")
             finally:
                 self.root.after(0, self.progress.stop)
                 self.root.after(0, self.progress.place_forget)
@@ -313,8 +677,18 @@ class EnhancedCSVAnalyzerApp:
             text=f"{filename} | {self.df.shape[0]} rows × {self.df.shape[1]} cols"
         )
         
-        # Show data preview
-        self.show_data_preview()
+        # Show dashboard
+        self.show_dashboard()
+        
+        # Show success message
+        self.show_message("Success", 
+                         f"CSV file loaded successfully!\n\n"
+                         f"• File: {filename}\n"
+                         f"• Rows: {self.df.shape[0]:,}\n"
+                         f"• Columns: {self.df.shape[1]}\n"
+                         f"• Missing values: {self.df.isnull().sum().sum():,}\n"
+                         f"• Duplicate rows: {self.df.duplicated().sum():,}",
+                         "success")
     
     def show_data_preview(self):
         self.clear_content()
@@ -421,7 +795,6 @@ class EnhancedCSVAnalyzerApp:
             borderwidth=1,
             relief="flat"
         )
-        style.map('Treeview.Heading', background=[('active', '#cbd5e0')])
         
         # Populate table
         preview_df = self.df.head(50)
@@ -436,7 +809,7 @@ class EnhancedCSVAnalyzerApp:
     
     def show_cleaning_panel(self):
         if self.df is None:
-            messagebox.showinfo("No Data", "Please load a CSV file first.")
+            self.show_message("No Data", "Please load a CSV file first.", "info")
             return
         
         self.clear_content()
@@ -535,20 +908,38 @@ class EnhancedCSVAnalyzerApp:
             
             methods_frame.grid_columnconfigure(i%2, weight=1)
         
-        # Outlier removal section
-        outlier_frame = tk.Frame(cleaning_card, bg="#f1f5f9", padx=20, pady=20)
-        outlier_frame.pack(fill="x", pady=(20, 0))
+        # Additional cleaning options
+        extra_frame = tk.Frame(cleaning_card, bg="#f1f5f9", padx=20, pady=20)
+        extra_frame.pack(fill="x", pady=(20, 0))
         
         tk.Label(
-            outlier_frame,
-            text="🔍 Outlier Detection & Removal",
+            extra_frame,
+            text="🔧 Advanced Cleaning Options",
             font=("Segoe UI", 12, "bold"),
             bg="#f1f5f9",
             fg=self.colors['dark']
         ).pack(anchor="w", pady=(0, 10))
         
+        # Duplicate removal button
+        dup_btn = tk.Button(
+            extra_frame,
+            text="Remove Duplicate Rows",
+            font=("Segoe UI", 11),
+            bg="#f72585",
+            fg="white",
+            padx=30,
+            pady=10,
+            cursor="hand2",
+            relief="flat",
+            command=self.remove_duplicates_specific
+        )
+        dup_btn.pack(side="left", padx=10)
+        dup_btn.bind("<Enter>", lambda e: dup_btn.config(bg="#e63946"))
+        dup_btn.bind("<Leave>", lambda e: dup_btn.config(bg="#f72585"))
+        
+        # Outlier removal button
         outlier_btn = tk.Button(
-            outlier_frame,
+            extra_frame,
             text="Remove Outliers (IQR Method)",
             font=("Segoe UI", 11),
             bg=self.colors['warning'],
@@ -559,11 +950,31 @@ class EnhancedCSVAnalyzerApp:
             relief="flat",
             command=self.remove_outliers
         )
-        outlier_btn.pack()
-        
-        # Hover effect
+        outlier_btn.pack(side="left", padx=10)
         outlier_btn.bind("<Enter>", lambda e: outlier_btn.config(bg="#f3722c"))
         outlier_btn.bind("<Leave>", lambda e: outlier_btn.config(bg=self.colors['warning']))
+    
+    def remove_duplicates_specific(self):
+        original_rows = len(self.cleaned_df)
+        duplicate_count = self.cleaned_df.duplicated().sum()
+        
+        if duplicate_count == 0:
+            self.show_message("No Duplicates", "No duplicate rows found in the dataset.", "info")
+            return
+        
+        self.cleaned_df = self.cleaned_df.drop_duplicates()
+        
+        message = (f"Duplicate rows removed!\n\n"
+                  f"• Removed {duplicate_count} duplicate rows\n"
+                  f"• Original rows: {original_rows:,}\n"
+                  f"• New row count: {len(self.cleaned_df):,}\n"
+                  f"• Data retained: {(len(self.cleaned_df)/original_rows*100):.1f}%")
+        
+        self.update_status(f"Removed {duplicate_count} duplicate rows")
+        self.show_message("Duplicates Removed", message, "success")
+        
+        # Refresh data preview
+        self.refresh_data_preview()
     
     def apply_cleaning_method(self, method):
         col = self.clean_column.get()
@@ -571,14 +982,18 @@ class EnhancedCSVAnalyzerApp:
             return
         
         try:
+            original_missing = self.cleaned_df[col].isnull().sum()
+            original_rows = len(self.cleaned_df)
+            
             if method == "Mean Imputation":
                 if pd.api.types.is_numeric_dtype(self.cleaned_df[col]):
                     self.cleaned_df[col] = self.cleaned_df[col].fillna(
                         self.cleaned_df[col].mean()
                     )
+                    message = f"Replaced {original_missing} missing values in '{col}' with mean: {self.cleaned_df[col].mean():.2f}"
                 else:
-                    messagebox.showwarning("Invalid Operation", 
-                                         "Mean imputation only works for numeric columns")
+                    self.show_message("Invalid Operation", 
+                                    "Mean imputation only works for numeric columns", "warning")
                     return
             
             elif method == "Median Imputation":
@@ -586,33 +1001,41 @@ class EnhancedCSVAnalyzerApp:
                     self.cleaned_df[col] = self.cleaned_df[col].fillna(
                         self.cleaned_df[col].median()
                     )
+                    message = f"Replaced {original_missing} missing values in '{col}' with median: {self.cleaned_df[col].median():.2f}"
                 else:
-                    messagebox.showwarning("Invalid Operation",
-                                         "Median imputation only works for numeric columns")
+                    self.show_message("Invalid Operation",
+                                    "Median imputation only works for numeric columns", "warning")
                     return
             
             elif method == "Mode Imputation":
-                self.cleaned_df[col] = self.cleaned_df[col].fillna(
-                    self.cleaned_df[col].mode()[0] if not self.cleaned_df[col].mode().empty else ""
-                )
+                mode_val = self.cleaned_df[col].mode()[0] if not self.cleaned_df[col].mode().empty else ""
+                self.cleaned_df[col] = self.cleaned_df[col].fillna(mode_val)
+                message = f"Replaced {original_missing} missing values in '{col}' with mode: '{mode_val}'"
             
             elif method == "Drop Rows":
                 self.cleaned_df = self.cleaned_df.dropna(subset=[col])
+                rows_removed = original_rows - len(self.cleaned_df)
+                message = f"Removed {rows_removed} rows with missing values in '{col}'\nNew dataset has {len(self.cleaned_df)} rows"
             
             elif method == "Forward Fill":
                 self.cleaned_df[col] = self.cleaned_df[col].ffill()
+                current_missing = self.cleaned_df[col].isnull().sum()
+                message = f"Applied forward fill to '{col}'\nMissing values reduced from {original_missing} to {current_missing}"
             
             elif method == "Backward Fill":
                 self.cleaned_df[col] = self.cleaned_df[col].bfill()
+                current_missing = self.cleaned_df[col].isnull().sum()
+                message = f"Applied backward fill to '{col}'\nMissing values reduced from {original_missing} to {current_missing}"
             
+            # Update status and show message
             self.update_status(f"Applied {method} to {col}")
-            messagebox.showinfo("Success", 
-                              f"{method} applied successfully!\n"
-                              f"Remaining missing values in {col}: "
-                              f"{self.cleaned_df[col].isnull().sum()}")
+            self.show_message("Cleaning Applied Successfully", message, "success")
+            
+            # Refresh data preview
+            self.refresh_data_preview()
             
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to apply cleaning method:\n{str(e)}")
+            self.show_message("Error", f"Failed to apply cleaning method:\n{str(e)}", "error")
     
     def remove_outliers(self):
         col = self.clean_column.get()
@@ -620,8 +1043,8 @@ class EnhancedCSVAnalyzerApp:
             return
         
         if not pd.api.types.is_numeric_dtype(self.cleaned_df[col]):
-            messagebox.showwarning("Invalid Operation",
-                                 "Outlier removal only works for numeric columns")
+            self.show_message("Invalid Operation",
+                            "Outlier removal only works for numeric columns", "warning")
             return
         
         original_count = len(self.cleaned_df)
@@ -637,14 +1060,37 @@ class EnhancedCSVAnalyzerApp:
         
         removed_count = original_count - len(self.cleaned_df)
         
+        # Show detailed message
+        message = (
+            f"Outlier removal completed for column: '{col}'\n\n"
+            f"• Removed {removed_count} outliers\n"
+            f"• Original rows: {original_count:,}\n"
+            f"• New row count: {len(self.cleaned_df):,}\n"
+            f"• IQR range: [{Q1 - 1.5*IQR:.2f}, {Q3 + 1.5*IQR:.2f}]\n"
+            f"• Data retained: {(len(self.cleaned_df)/original_count*100):.1f}%"
+        )
+        
         self.update_status(f"Removed {removed_count} outliers from {col}")
-        messagebox.showinfo("Outliers Removed",
-                          f"Removed {removed_count} outliers from '{col}'\n"
-                          f"New dataset has {len(self.cleaned_df)} rows")
+        self.show_message("Outliers Removed Successfully", message, "success")
+        
+        # Refresh data preview
+        self.refresh_data_preview()
+    
+    def refresh_data_preview(self):
+        """Refresh the data preview table with cleaned data"""
+        if hasattr(self, 'tree') and self.tree:
+            # Clear existing data
+            for item in self.tree.get_children():
+                self.tree.delete(item)
+            
+            # Add cleaned data
+            preview_df = self.cleaned_df.head(50)
+            for _, row in preview_df.iterrows():
+                self.tree.insert("", "end", values=list(row))
     
     def show_visualization_panel(self):
         if self.df is None:
-            messagebox.showinfo("No Data", "Please load a CSV file first.")
+            self.show_message("No Data", "Please load a CSV file first.", "info")
             return
         
         self.clear_content()
@@ -660,81 +1106,326 @@ class EnhancedCSVAnalyzerApp:
             fg=self.colors['dark']
         ).pack(anchor="w", pady=(0, 20))
         
-        # Chart type selection
-        chart_frame = tk.Frame(viz_card, bg="white")
-        chart_frame.pack(fill="x", pady=(0, 20))
+        # ===== Visualization Selector =====
+        selector_frame = tk.Frame(viz_card, bg="white")
+        selector_frame.pack(fill="x", pady=(0, 20))
         
-        chart_types = [
-            ("📊 Histogram", "Distribution of a single variable", self.show_histogram),
-            ("📦 Box Plot", "Distribution and outliers", self.show_boxplot),
-            ("📈 Line Chart", "Trends over time/sequence", self.show_line_chart),
-            ("• Scatter Plot", "Relationship between two variables", self.show_scatter_plot),
-            ("📊 Bar Chart", "Categorical data comparison", self.show_bar_chart),
-            ("🫓 Pie Chart", "Proportional composition", self.show_pie_chart)
-        ]
+        tk.Label(
+            selector_frame,
+            text="Chart Type:",
+            font=("Segoe UI", 11, "bold"),
+            bg="white",
+            fg=self.colors['dark']
+        ).pack(side="left", padx=(0, 15))
         
-        for i, (title, desc, command) in enumerate(chart_types):
-            chart_card = tk.Frame(
-                chart_frame,
-                bg="#f8fafc",
-                relief="groove",
-                borderwidth=1,
-                cursor="hand2"
-            )
-            chart_card.grid(row=i//3, column=i%3, padx=10, pady=10, sticky="nsew")
-            chart_card.bind("<Button-1>", lambda e, cmd=command: cmd())
-            
-            tk.Label(
-                chart_card,
-                text=title,
-                font=("Segoe UI", 11, "bold"),
-                bg="#f8fafc",
-                fg=self.colors['primary']
-            ).pack(anchor="w", padx=15, pady=(15, 5))
-            
-            tk.Label(
-                chart_card,
-                text=desc,
-                font=("Segoe UI", 9),
-                bg="#f8fafc",
-                fg="#718096",
-                wraplength=150
-            ).pack(anchor="w", padx=15, pady=(0, 15))
-            
-            chart_frame.grid_columnconfigure(i%3, weight=1)
+        # Visualization type dropdown
+        self.viz_type = ttk.Combobox(
+            selector_frame,
+            values=[
+                "Histogram",
+                "Box Plot", 
+                "Scatter Plot",
+                "Line Chart",
+                "Bar Chart",
+                "Pie Chart"
+            ],
+            state="readonly",
+            width=15,
+            font=("Segoe UI", 10)
+        )
+        self.viz_type.current(0)
+        self.viz_type.pack(side="left", padx=(0, 30))
+        self.viz_type.bind('<<ComboboxSelected>>', self.update_viz_selectors)
+        
+        # X-Axis selector
+        tk.Label(
+            selector_frame,
+            text="X-Axis:",
+            font=("Segoe UI", 11, "bold"),
+            bg="white",
+            fg=self.colors['dark']
+        ).pack(side="left", padx=(0, 10))
+        
+        self.viz_x = ttk.Combobox(
+            selector_frame,
+            state="readonly",
+            width=20,
+            font=("Segoe UI", 10)
+        )
+        self.viz_x.pack(side="left", padx=(0, 20))
+        
+        # Y-Axis selector (only for certain charts)
+        self.y_label = tk.Label(
+            selector_frame,
+            text="Y-Axis:",
+            font=("Segoe UI", 11, "bold"),
+            bg="white",
+            fg=self.colors['dark']
+        )
+        
+        self.viz_y = ttk.Combobox(
+            selector_frame,
+            state="readonly",
+            width=20,
+            font=("Segoe UI", 10)
+        )
+        
+        # Generate button
+        generate_btn = tk.Button(
+            selector_frame,
+            text="Generate Chart",
+            font=("Segoe UI", 10, "bold"),
+            bg=self.colors['primary'],
+            fg="white",
+            padx=20,
+            pady=5,
+            cursor="hand2",
+            relief="flat",
+            command=self.generate_visualization
+        )
+        generate_btn.pack(side="left", padx=(20, 0))
+        
+        # Hover effect
+        generate_btn.bind("<Enter>", lambda e: generate_btn.config(bg=self.colors['secondary']))
+        generate_btn.bind("<Leave>", lambda e: generate_btn.config(bg=self.colors['primary']))
+        
+        # Initialize selectors
+        self.update_viz_selectors()
+        
+        # Chart display area with Save button
+        chart_container = tk.Frame(viz_card, bg="white")
+        chart_container.pack(fill="both", expand=True, pady=(20, 0))
+        
+        # Chart controls frame
+        controls_frame = tk.Frame(chart_container, bg="white", height=40)
+        controls_frame.pack(fill="x", pady=(0, 10))
+        controls_frame.pack_propagate(False)
+        
+        # Save Chart button
+        self.save_chart_btn = tk.Button(
+            controls_frame,
+            text="💾 Save Chart",
+            font=("Segoe UI", 10, "bold"),
+            bg="#38b000",
+            fg="white",
+            padx=20,
+            pady=5,
+            cursor="hand2",
+            relief="flat",
+            command=self.save_chart,
+            state="disabled"
+        )
+        self.save_chart_btn.pack(side="right", padx=10)
+        self.save_chart_btn.bind("<Enter>", lambda e: self.save_chart_btn.config(bg="#06d6a0"))
+        self.save_chart_btn.bind("<Leave>", lambda e: self.save_chart_btn.config(bg="#38b000"))
         
         # Chart display area
-        self.chart_display = tk.Frame(viz_card, bg="white", height=400)
-        self.chart_display.pack(fill="both", expand=True, pady=(20, 0))
+        self.chart_display = tk.Frame(chart_container, bg="#f8fafc", height=450)
+        self.chart_display.pack(fill="both", expand=True)
+        
+        # Initial message
+        self.chart_message = tk.Label(
+            self.chart_display,
+            text="👆 Select chart type and axis columns, then click 'Generate Chart'",
+            font=("Segoe UI", 12),
+            bg="#f8fafc",
+            fg="#718096"
+        )
+        self.chart_message.pack(expand=True)
+        
+        # Store current figure
+        self.current_figure = None
     
-    def create_chart_frame(self, title):
+    def update_viz_selectors(self, event=None):
+        """Update column selectors based on chosen visualization type"""
+        viz_type = self.viz_type.get()
+        
+        # Hide Y-axis by default
+        self.y_label.pack_forget()
+        self.viz_y.pack_forget()
+        
+        if viz_type in ["Histogram", "Box Plot", "Bar Chart", "Pie Chart"]:
+            # Single column needed
+            if viz_type in ["Bar Chart", "Pie Chart"]:
+                # For bar/pie charts, show categorical first, then numeric
+                categorical_cols = list(self.cleaned_df.select_dtypes(include=['object']).columns)
+                numeric_cols = list(self.cleaned_df.select_dtypes(include=['number']).columns)
+                available_cols = categorical_cols + numeric_cols
+            else:
+                # For histogram/boxplot, show numeric first
+                numeric_cols = list(self.cleaned_df.select_dtypes(include=['number']).columns)
+                categorical_cols = list(self.cleaned_df.select_dtypes(include=['object']).columns)
+                available_cols = numeric_cols + categorical_cols
+            
+            self.viz_x['values'] = available_cols
+            if available_cols:
+                self.viz_x.current(0)
+            
+            # Add column type indicator
+            self.add_column_type_indicator(self.viz_x, available_cols)
+        
+        elif viz_type in ["Scatter Plot", "Line Chart"]:
+            # Two columns needed
+            numeric_cols = list(self.cleaned_df.select_dtypes(include=['number']).columns)
+            all_cols = list(self.cleaned_df.columns)
+            
+            self.viz_x['values'] = all_cols
+            self.viz_y['values'] = numeric_cols
+            
+            if len(all_cols) >= 1:
+                self.viz_x.current(0)
+            if len(numeric_cols) >= 1:
+                self.viz_y.current(0)
+            
+            # Show Y-axis selector
+            self.y_label.pack(side="left", padx=(20, 10))
+            self.viz_y.pack(side="left", padx=(0, 20))
+            
+            # Add column type indicators
+            self.add_column_type_indicator(self.viz_x, all_cols)
+            self.add_column_type_indicator(self.viz_y, numeric_cols)
+    
+    def add_column_type_indicator(self, combobox, columns):
+        """Add column type indicators to combobox values"""
+        if not columns:
+            return
+        
+        formatted_values = []
+        for col in columns:
+            dtype = str(self.cleaned_df[col].dtype)
+            if dtype.startswith('int') or dtype.startswith('float'):
+                type_indicator = " (numeric)"
+            elif dtype == 'object':
+                type_indicator = " (text)"
+            elif dtype == 'datetime64[ns]':
+                type_indicator = " (date)"
+            else:
+                type_indicator = f" ({dtype})"
+            
+            formatted_values.append(f"{col}{type_indicator}")
+        
+        combobox['values'] = formatted_values
+        
+        # Store mapping of formatted values to actual column names
+        combobox.column_mapping = {f"{col}{self.get_column_type_indicator(col)}": col for col in columns}
+    
+    def get_column_type_indicator(self, column):
+        """Get type indicator for a column"""
+        if column not in self.cleaned_df.columns:
+            return ""
+        
+        dtype = str(self.cleaned_df[column].dtype)
+        if dtype.startswith('int') or dtype.startswith('float'):
+            return " (numeric)"
+        elif dtype == 'object':
+            return " (text)"
+        elif dtype == 'datetime64[ns]':
+            return " (date)"
+        else:
+            return f" ({dtype})"
+    
+    def get_actual_column_name(self, combobox, formatted_value):
+        """Extract actual column name from formatted combobox value"""
+        if hasattr(combobox, 'column_mapping') and formatted_value in combobox.column_mapping:
+            return combobox.column_mapping[formatted_value]
+        
+        # Fallback: remove anything in parentheses
+        if " (" in formatted_value:
+            return formatted_value.split(" (")[0]
+        return formatted_value
+    
+    def generate_visualization(self):
+        viz_type = self.viz_type.get()
+        x_col_formatted = self.viz_x.get()
+        
+        if not x_col_formatted:
+            self.show_message("No Column Selected", "Please select at least one column.", "warning")
+            return
+        
+        x_col = self.get_actual_column_name(self.viz_x, x_col_formatted)
+        
+        # Get Y column if applicable
+        y_col = None
+        if self.viz_y.winfo_ismapped():
+            y_col_formatted = self.viz_y.get()
+            if y_col_formatted:
+                y_col = self.get_actual_column_name(self.viz_y, y_col_formatted)
+        
         # Clear previous chart
         for widget in self.chart_display.winfo_children():
             widget.destroy()
         
-        # Create new chart container
-        chart_container = tk.Frame(self.chart_display, bg="white")
-        chart_container.pack(fill="both", expand=True)
-        
-        tk.Label(
-            chart_container,
-            text=title,
-            font=("Segoe UI", 14, "bold"),
-            bg="white",
-            fg=self.colors['dark']
-        ).pack(anchor="w", pady=(0, 10))
-        
-        return chart_container
+        # Generate the selected visualization
+        try:
+            if viz_type == "Histogram":
+                self.create_histogram(x_col)
+            elif viz_type == "Box Plot":
+                self.create_boxplot(x_col)
+            elif viz_type == "Scatter Plot":
+                if y_col:
+                    self.create_scatter_plot(x_col, y_col)
+                else:
+                    self.show_message("Y-Axis Needed", 
+                                    "Please select Y-axis column for scatter plot.", "warning")
+                    return
+            elif viz_type == "Line Chart":
+                self.create_line_chart(x_col, y_col)
+            elif viz_type == "Bar Chart":
+                self.create_bar_chart(x_col)
+            elif viz_type == "Pie Chart":
+                self.create_pie_chart(x_col)
+            
+            # Enable save button
+            self.save_chart_btn.config(state="normal")
+            
+        except Exception as e:
+            self.show_message("Chart Error", f"Failed to create chart:\n{str(e)}", "error")
+            # Disable save button on error
+            self.save_chart_btn.config(state="disabled")
     
-    def show_histogram(self):
-        col = self.get_numeric_column("Select column for histogram:")
-        if not col:
+    def save_chart(self):
+        if self.current_figure is None:
+            self.show_message("No Chart", "No chart to save. Please generate a chart first.", "warning")
             return
         
-        chart_container = self.create_chart_frame(f"Histogram of {col}")
+        file_types = [
+            ("PNG Image", "*.png"),
+            ("PDF Document", "*.pdf"),
+            ("SVG Vector", "*.svg"),
+            ("All Files", "*.*")
+        ]
         
-        fig = plt.Figure(figsize=(10, 6), dpi=100)
-        ax = fig.add_subplot(111)
+        path = filedialog.asksaveasfilename(
+            defaultextension=".png",
+            filetypes=file_types
+        )
+        
+        if path:
+            try:
+                self.current_figure.savefig(path, dpi=300, bbox_inches='tight')
+                
+                filename = path.split('/')[-1]
+                self.show_message("Chart Saved", 
+                                f"Chart saved successfully!\n\n"
+                                f"• File: {filename}\n"
+                                f"• Size: {self.current_figure.get_size_inches()[0]:.1f}×{self.current_figure.get_size_inches()[1]:.1f} inches\n"
+                                f"• DPI: 300\n"
+                                f"• Format: {path.split('.')[-1].upper()}", 
+                                "success")
+                
+                self.update_status(f"Chart saved as {filename}")
+                
+            except Exception as e:
+                self.show_message("Save Failed", f"Error saving chart:\n{str(e)}", "error")
+    
+    def create_histogram(self, col):
+        if not pd.api.types.is_numeric_dtype(self.cleaned_df[col]):
+            self.show_message("Invalid Column", 
+                            "Histogram requires numeric columns.", "warning")
+            return
+        
+        self.current_figure = plt.Figure(figsize=(10, 6), dpi=100)
+        ax = self.current_figure.add_subplot(111)
         
         data = self.cleaned_df[col].dropna()
         ax.hist(data, bins=min(30, len(data)//10), edgecolor='white', alpha=0.7, 
@@ -742,27 +1433,26 @@ class EnhancedCSVAnalyzerApp:
         
         ax.set_xlabel(col, fontsize=11)
         ax.set_ylabel('Frequency', fontsize=11)
-        ax.set_title(f'Distribution of {col}', fontsize=13, fontweight='bold')
+        ax.set_title(f'Histogram of {col}', fontsize=13, fontweight='bold')
         ax.grid(True, alpha=0.3)
         
         # Add statistics
-        stats_text = f"Mean: {data.mean():.2f}\nStd: {data.std():.2f}\nN: {len(data)}"
+        stats_text = f"Mean: {data.mean():.2f}\nStd: {data.std():.2f}\nN: {len(data):,}"
         ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=10,
                 verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
         
-        canvas = FigureCanvasTkAgg(fig, chart_container)
+        canvas = FigureCanvasTkAgg(self.current_figure, self.chart_display)
         canvas.draw()
-        canvas.get_tk_widget().pack(fill="both", expand=True, padx=20, pady=20)
+        canvas.get_tk_widget().pack(fill="both", expand=True, padx=10, pady=10)
     
-    def show_boxplot(self):
-        col = self.get_numeric_column("Select column for box plot:")
-        if not col:
+    def create_boxplot(self, col):
+        if not pd.api.types.is_numeric_dtype(self.cleaned_df[col]):
+            self.show_message("Invalid Column", 
+                            "Box plot requires numeric columns.", "warning")
             return
         
-        chart_container = self.create_chart_frame(f"Box Plot of {col}")
-        
-        fig = plt.Figure(figsize=(10, 6), dpi=100)
-        ax = fig.add_subplot(111)
+        self.current_figure = plt.Figure(figsize=(10, 6), dpi=100)
+        ax = self.current_figure.add_subplot(111)
         
         data = self.cleaned_df[col].dropna()
         bp = ax.boxplot(data, patch_artist=True, vert=False)
@@ -782,96 +1472,72 @@ class EnhancedCSVAnalyzerApp:
         Q3 = data.quantile(0.75)
         IQR = Q3 - Q1
         
-        stats_text = f"Q1: {Q1:.2f}\nMedian: {data.median():.2f}\nQ3: {Q3:.2f}\nIQR: {IQR:.2f}"
+        stats_text = (f"Q1: {Q1:.2f}\n"
+                     f"Median: {data.median():.2f}\n"
+                     f"Q3: {Q3:.2f}\n"
+                     f"IQR: {IQR:.2f}\n"
+                     f"N: {len(data):,}")
         ax.text(0.02, 0.98, stats_text, transform=ax.transAxes, fontsize=10,
                 verticalalignment='top', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
         
-        canvas = FigureCanvasTkAgg(fig, chart_container)
+        canvas = FigureCanvasTkAgg(self.current_figure, self.chart_display)
         canvas.draw()
-        canvas.get_tk_widget().pack(fill="both", expand=True, padx=20, pady=20)
+        canvas.get_tk_widget().pack(fill="both", expand=True, padx=10, pady=10)
     
-    def show_line_chart(self):
-        # Simplified line chart - you can enhance this
-        numeric_cols = self.cleaned_df.select_dtypes(include=['number']).columns
-        
-        if len(numeric_cols) < 2:
-            messagebox.showinfo("Insufficient Data",
-                              "Need at least 2 numeric columns for line chart")
-            return
-        
-        chart_container = self.create_chart_frame("Line Chart")
-        
-        fig = plt.Figure(figsize=(10, 6), dpi=100)
-        ax = fig.add_subplot(111)
-        
-        sample_data = self.cleaned_df[numeric_cols[:2]].head(50)
-        
-        for i, col in enumerate(sample_data.columns):
-            ax.plot(sample_data.index, sample_data[col], 
-                   marker='o', linewidth=2, label=col,
-                   color=[self.colors['primary'], self.colors['accent']][i])
-        
-        ax.set_xlabel('Index', fontsize=11)
-        ax.set_ylabel('Value', fontsize=11)
-        ax.set_title('Line Chart Comparison', fontsize=13, fontweight='bold')
-        ax.legend()
-        ax.grid(True, alpha=0.3)
-        
-        canvas = FigureCanvasTkAgg(fig, chart_container)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill="both", expand=True, padx=20, pady=20)
-    
-    def show_scatter_plot(self):
-        numeric_cols = list(self.cleaned_df.select_dtypes(include=['number']).columns)
-        
-        if len(numeric_cols) < 2:
-            messagebox.showinfo("Insufficient Data",
-                              "Need at least 2 numeric columns for scatter plot")
-            return
-        
-        chart_container = self.create_chart_frame("Scatter Plot")
-        
-        fig = plt.Figure(figsize=(10, 6), dpi=100)
-        ax = fig.add_subplot(111)
-        
-        x_col = numeric_cols[0]
-        y_col = numeric_cols[1] if len(numeric_cols) > 1 else numeric_cols[0]
+    def create_scatter_plot(self, x_col, y_col):
+        self.current_figure = plt.Figure(figsize=(10, 6), dpi=100)
+        ax = self.current_figure.add_subplot(111)
         
         ax.scatter(self.cleaned_df[x_col], self.cleaned_df[y_col], 
                   alpha=0.6, color=self.colors['primary'], edgecolors='white')
         
-        ax.set_xlabel(x_col, fontsize=11)
-        ax.set_ylabel(y_col, fontsize=11)
-        ax.set_title(f'{x_col} vs {y_col}', fontsize=13, fontweight='bold')
+        ax.set_xlabel(f"{x_col} (X-Axis)", fontsize=11)
+        ax.set_ylabel(f"{y_col} (Y-Axis)", fontsize=11)
+        ax.set_title(f'Scatter Plot: {x_col} vs {y_col}', fontsize=13, fontweight='bold')
         ax.grid(True, alpha=0.3)
         
-        canvas = FigureCanvasTkAgg(fig, chart_container)
+        canvas = FigureCanvasTkAgg(self.current_figure, self.chart_display)
         canvas.draw()
-        canvas.get_tk_widget().pack(fill="both", expand=True, padx=20, pady=20)
+        canvas.get_tk_widget().pack(fill="both", expand=True, padx=10, pady=10)
     
-    def show_bar_chart(self):
-        # For simplicity, using first categorical column
-        categorical_cols = self.cleaned_df.select_dtypes(include=['object']).columns
+    def create_line_chart(self, x_col, y_col=None):
+        self.current_figure = plt.Figure(figsize=(10, 6), dpi=100)
+        ax = self.current_figure.add_subplot(111)
         
-        if len(categorical_cols) == 0:
-            messagebox.showinfo("No Categorical Data",
-                              "No categorical columns found for bar chart")
-            return
+        if y_col:
+            data = self.cleaned_df[[x_col, y_col]].head(100)
+            ax.plot(data.index, data[x_col], marker='o', linewidth=2, label=f"{x_col} (X)",
+                   color=self.colors['primary'])
+            ax.plot(data.index, data[y_col], marker='s', linewidth=2, label=f"{y_col} (Y)",
+                   color=self.colors['accent'])
+            ax.legend()
+            title = f'Line Chart: {x_col} vs {y_col}'
+        else:
+            data = self.cleaned_df[x_col].head(100)
+            ax.plot(data.index, data, marker='o', linewidth=2, color=self.colors['primary'])
+            title = f'Line Chart: {x_col}'
         
-        col = categorical_cols[0]
+        ax.set_xlabel('Index (X-Axis)', fontsize=11)
+        ax.set_ylabel('Value (Y-Axis)', fontsize=11)
+        ax.set_title(title, fontsize=13, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        
+        canvas = FigureCanvasTkAgg(self.current_figure, self.chart_display)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill="both", expand=True, padx=10, pady=10)
+    
+    def create_bar_chart(self, col):
         top_values = self.cleaned_df[col].value_counts().head(10)
         
-        chart_container = self.create_chart_frame(f"Bar Chart: Top 10 {col}")
-        
-        fig = plt.Figure(figsize=(10, 6), dpi=100)
-        ax = fig.add_subplot(111)
+        self.current_figure = plt.Figure(figsize=(10, 6), dpi=100)
+        ax = self.current_figure.add_subplot(111)
         
         colors = plt.cm.Set3(np.linspace(0, 1, len(top_values)))
         bars = ax.bar(range(len(top_values)), top_values.values, color=colors, edgecolor='white')
         
         ax.set_xlabel(col, fontsize=11)
         ax.set_ylabel('Count', fontsize=11)
-        ax.set_title(f'Top 10 Values in {col}', fontsize=13, fontweight='bold')
+        ax.set_title(f'Bar Chart: Top 10 Values in {col}', fontsize=13, fontweight='bold')
         ax.set_xticks(range(len(top_values)))
         ax.set_xticklabels(top_values.index, rotation=45, ha='right')
         ax.grid(True, alpha=0.3, axis='y')
@@ -882,26 +1548,15 @@ class EnhancedCSVAnalyzerApp:
             ax.text(bar.get_x() + bar.get_width()/2., height + 0.1,
                    f'{int(height)}', ha='center', va='bottom', fontsize=9)
         
-        canvas = FigureCanvasTkAgg(fig, chart_container)
+        canvas = FigureCanvasTkAgg(self.current_figure, self.chart_display)
         canvas.draw()
-        canvas.get_tk_widget().pack(fill="both", expand=True, padx=20, pady=20)
+        canvas.get_tk_widget().pack(fill="both", expand=True, padx=10, pady=10)
     
-    def show_pie_chart(self):
-        # Using first categorical column for pie chart
-        categorical_cols = self.cleaned_df.select_dtypes(include=['object']).columns
-        
-        if len(categorical_cols) == 0:
-            messagebox.showinfo("No Categorical Data",
-                              "No categorical columns found for pie chart")
-            return
-        
-        col = categorical_cols[0]
+    def create_pie_chart(self, col):
         value_counts = self.cleaned_df[col].value_counts().head(6)  # Top 6 categories
         
-        chart_container = self.create_chart_frame(f"Pie Chart: {col}")
-        
-        fig = plt.Figure(figsize=(8, 8), dpi=100)
-        ax = fig.add_subplot(111)
+        self.current_figure = plt.Figure(figsize=(8, 8), dpi=100)
+        ax = self.current_figure.add_subplot(111)
         
         colors = plt.cm.Pastel1(np.linspace(0, 1, len(value_counts)))
         wedges, texts, autotexts = ax.pie(value_counts.values, 
@@ -911,58 +1566,16 @@ class EnhancedCSVAnalyzerApp:
                                          startangle=90,
                                          textprops={'fontsize': 10})
         
-        ax.set_title(f'Distribution of {col}', fontsize=13, fontweight='bold')
+        ax.set_title(f'Pie Chart: Distribution of {col}', fontsize=13, fontweight='bold')
+        ax.axis('equal')  # Make the pie chart circular
         
-        # Make the pie chart circular
-        ax.axis('equal')
-        
-        canvas = FigureCanvasTkAgg(fig, chart_container)
+        canvas = FigureCanvasTkAgg(self.current_figure, self.chart_display)
         canvas.draw()
-        canvas.get_tk_widget().pack(fill="both", expand=True, padx=20, pady=20)
-    
-    def get_numeric_column(self, prompt):
-        numeric_cols = list(self.cleaned_df.select_dtypes(include=['number']).columns)
-        
-        if len(numeric_cols) == 0:
-            messagebox.showinfo("No Numeric Data",
-                              "No numeric columns available for this visualization")
-            return None
-        
-        # Create a simple dialog for column selection
-        dialog = tk.Toplevel(self.root)
-        dialog.title("Select Column")
-        dialog.geometry("300x150")
-        dialog.configure(bg="white")
-        dialog.transient(self.root)
-        dialog.grab_set()
-        
-        tk.Label(dialog, text=prompt, font=("Segoe UI", 11), 
-                bg="white", fg=self.colors['dark']).pack(pady=20)
-        
-        selected_col = tk.StringVar()
-        selected_col.set(numeric_cols[0])
-        
-        combobox = ttk.Combobox(dialog, textvariable=selected_col, 
-                               values=numeric_cols, state="readonly")
-        combobox.pack(pady=10, padx=20, fill="x")
-        
-        result = []
-        
-        def on_ok():
-            result.append(selected_col.get())
-            dialog.destroy()
-        
-        tk.Button(dialog, text="OK", command=on_ok, 
-                 bg=self.colors['primary'], fg="white",
-                 padx=20, pady=5).pack(pady=10)
-        
-        dialog.wait_window()
-        
-        return result[0] if result else None
+        canvas.get_tk_widget().pack(fill="both", expand=True, padx=10, pady=10)
     
     def show_statistics_panel(self):
         if self.df is None:
-            messagebox.showinfo("No Data", "Please load a CSV file first.")
+            self.show_message("No Data", "Please load a CSV file first.", "info")
             return
         
         self.clear_content()
@@ -978,149 +1591,207 @@ class EnhancedCSVAnalyzerApp:
             fg=self.colors['dark']
         ).pack(anchor="w", pady=(0, 20))
         
-        # Create text widget with scrollbar for statistics
-        text_frame = tk.Frame(stats_card, bg="white")
-        text_frame.pack(fill="both", expand=True)
+        # Create notebook for multiple tabs
+        notebook = ttk.Notebook(stats_card)
+        notebook.pack(fill="both", expand=True)
         
-        scrollbar = ttk.Scrollbar(text_frame)
-        scrollbar.pack(side="right", fill="y")
+        # Tab 1: Column Details
+        col_frame = tk.Frame(notebook, bg="white")
+        notebook.add(col_frame, text="Column Details")
         
-        stats_text = tk.Text(
-            text_frame,
+        # Create treeview for column details
+        col_tree_frame = tk.Frame(col_frame, bg="white")
+        col_tree_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Add scrollbars
+        col_v_scroll = ttk.Scrollbar(col_tree_frame, orient="vertical")
+        col_h_scroll = ttk.Scrollbar(col_tree_frame, orient="horizontal")
+        
+        col_tree = ttk.Treeview(
+            col_tree_frame,
+            columns=("Column", "Data Type", "Non-Null", "Null", "Null %", "Unique", "Sample Values"),
+            show="headings",
+            yscrollcommand=col_v_scroll.set,
+            xscrollcommand=col_h_scroll.set,
+            height=15
+        )
+        
+        col_v_scroll.config(command=col_tree.yview)
+        col_h_scroll.config(command=col_tree.xview)
+        
+        col_v_scroll.pack(side="right", fill="y")
+        col_h_scroll.pack(side="bottom", fill="x")
+        col_tree.pack(side="left", fill="both", expand=True)
+        
+        # Configure columns
+        col_tree.heading("Column", text="Column Name")
+        col_tree.heading("Data Type", text="Data Type")
+        col_tree.heading("Non-Null", text="Non-Null Count")
+        col_tree.heading("Null", text="Null Count")
+        col_tree.heading("Null %", text="Null %")
+        col_tree.heading("Unique", text="Unique Values")
+        col_tree.heading("Sample Values", text="Sample Values")
+        
+        col_tree.column("Column", width=150)
+        col_tree.column("Data Type", width=100)
+        col_tree.column("Non-Null", width=100)
+        col_tree.column("Null", width=80)
+        col_tree.column("Null %", width=80)
+        col_tree.column("Unique", width=80)
+        col_tree.column("Sample Values", width=200)
+        
+        # Populate column details
+        for col in self.cleaned_df.columns:
+            non_null = self.cleaned_df[col].count()
+            null_count = self.cleaned_df[col].isnull().sum()
+            null_percent = (null_count / len(self.cleaned_df)) * 100 if len(self.cleaned_df) > 0 else 0
+            unique_count = self.cleaned_df[col].nunique()
+            
+            # Get sample values
+            sample_values = []
+            for val in self.cleaned_df[col].dropna().head(3):
+                sample_values.append(str(val))
+            sample_str = ", ".join(sample_values) if sample_values else "N/A"
+            
+            # Get data type with better formatting
+            dtype = str(self.cleaned_df[col].dtype)
+            if dtype.startswith('int'):
+                dtype_fmt = "Integer"
+            elif dtype.startswith('float'):
+                dtype_fmt = "Float"
+            elif dtype == 'object':
+                dtype_fmt = "Text"
+            elif dtype == 'datetime64[ns]':
+                dtype_fmt = "Date"
+            elif dtype == 'bool':
+                dtype_fmt = "Boolean"
+            else:
+                dtype_fmt = dtype
+            
+            col_tree.insert("", "end", values=(
+                col,
+                dtype_fmt,
+                f"{non_null:,}",
+                f"{null_count:,}",
+                f"{null_percent:.1f}%",
+                f"{unique_count:,}",
+                sample_str[:50] + "..." if len(sample_str) > 50 else sample_str
+            ))
+        
+        # Tab 2: Numerical Statistics
+        num_frame = tk.Frame(notebook, bg="white")
+        notebook.add(num_frame, text="Numerical Statistics")
+        
+        # Create text widget for numerical statistics
+        num_text_frame = tk.Frame(num_frame, bg="white")
+        num_text_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        num_scrollbar = ttk.Scrollbar(num_text_frame)
+        num_scrollbar.pack(side="right", fill="y")
+        
+        num_text = tk.Text(
+            num_text_frame,
             font=("Consolas", 10),
             wrap="none",
-            yscrollcommand=scrollbar.set,
+            yscrollcommand=num_scrollbar.set,
             bg="#f8fafc",
             padx=15,
-            pady=15,
-            relief="flat"
+            pady=15
         )
-        stats_text.pack(side="left", fill="both", expand=True)
-        scrollbar.config(command=stats_text.yview)
+        num_text.pack(side="left", fill="both", expand=True)
+        num_scrollbar.config(command=num_text.yview)
         
-        # Display statistics
-        stats_text.insert("end", "=" * 70 + "\n")
-        stats_text.insert("end", "DATASET STATISTICAL SUMMARY\n")
-        stats_text.insert("end", "=" * 70 + "\n\n")
-        
-        # Basic info
-        stats_text.insert("end", "BASIC INFORMATION:\n")
-        stats_text.insert("end", "-" * 40 + "\n")
-        stats_text.insert("end", f"Shape: {self.cleaned_df.shape[0]} rows × {self.cleaned_df.shape[1]} columns\n")
-        stats_text.insert("end", f"Total cells: {self.cleaned_df.size:,}\n")
-        stats_text.insert("end", f"Memory usage: {self.cleaned_df.memory_usage(deep=True).sum() / 1024 / 1024:.2f} MB\n\n")
-        
-        # Data types
-        stats_text.insert("end", "DATA TYPES:\n")
-        stats_text.insert("end", "-" * 40 + "\n")
-        for dtype, count in self.cleaned_df.dtypes.value_counts().items():
-            stats_text.insert("end", f"{dtype}: {count}\n")
-        stats_text.insert("end", "\n")
-        
-        # Missing values
-        stats_text.insert("end", "MISSING VALUES:\n")
-        stats_text.insert("end", "-" * 40 + "\n")
-        missing = self.cleaned_df.isnull().sum()
-        missing = missing[missing > 0]
-        if len(missing) == 0:
-            stats_text.insert("end", "No missing values found\n")
-        else:
-            for col, count in missing.items():
-                percentage = (count / len(self.cleaned_df)) * 100
-                stats_text.insert("end", f"{col}: {count:,} ({percentage:.1f}%)\n")
-        stats_text.insert("end", "\n")
-        
-        # Numerical statistics
+        # Display numerical statistics
         numeric_cols = self.cleaned_df.select_dtypes(include=['number'])
         if len(numeric_cols.columns) > 0:
-            stats_text.insert("end", "NUMERICAL COLUMNS STATISTICS:\n")
-            stats_text.insert("end", "-" * 40 + "\n")
+            num_text.insert("end", "NUMERICAL COLUMNS STATISTICS\n")
+            num_text.insert("end", "=" * 50 + "\n\n")
             
             desc = numeric_cols.describe().T
             for col in numeric_cols.columns:
-                stats_text.insert("end", f"\n{col}:\n")
-                stats_text.insert("end", f"  Count:    {desc.loc[col, 'count']:,.0f}\n")
-                stats_text.insert("end", f"  Mean:     {desc.loc[col, 'mean']:,.2f}\n")
-                stats_text.insert("end", f"  Std:      {desc.loc[col, 'std']:,.2f}\n")
-                stats_text.insert("end", f"  Min:      {desc.loc[col, 'min']:,.2f}\n")
-                stats_text.insert("end", f"  25%:      {desc.loc[col, '25%']:,.2f}\n")
-                stats_text.insert("end", f"  50%:      {desc.loc[col, '50%']:,.2f}\n")
-                stats_text.insert("end", f"  75%:      {desc.loc[col, '75%']:,.2f}\n")
-                stats_text.insert("end", f"  Max:      {desc.loc[col, 'max']:,.2f}\n")
+                num_text.insert("end", f"{col}:\n")
+                num_text.insert("end", "-" * 40 + "\n")
+                num_text.insert("end", f"  Count:    {desc.loc[col, 'count']:,.0f}\n")
+                num_text.insert("end", f"  Mean:     {desc.loc[col, 'mean']:,.2f}\n")
+                num_text.insert("end", f"  Std:      {desc.loc[col, 'std']:,.2f}\n")
+                num_text.insert("end", f"  Min:      {desc.loc[col, 'min']:,.2f}\n")
+                num_text.insert("end", f"  25%:      {desc.loc[col, '25%']:,.2f}\n")
+                num_text.insert("end", f"  50%:      {desc.loc[col, '50%']:,.2f}\n")
+                num_text.insert("end", f"  75%:      {desc.loc[col, '75%']:,.2f}\n")
+                num_text.insert("end", f"  Max:      {desc.loc[col, 'max']:,.2f}\n\n")
+        else:
+            num_text.insert("end", "No numerical columns found in the dataset.\n")
         
-        stats_text.config(state="disabled")
-    
-    def show_settings_panel(self):
-        self.clear_content()
+        num_text.config(state="disabled")
         
-        settings_card = tk.Frame(self.card_container, bg="white", padx=20, pady=20)
-        settings_card.pack(fill="both", expand=True)
+        # Tab 3: Overall Statistics
+        overall_frame = tk.Frame(notebook, bg="white")
+        notebook.add(overall_frame, text="Overall Statistics")
         
-        tk.Label(
-            settings_card,
-            text="⚙️ Application Settings",
-            font=("Segoe UI", 16, "bold"),
-            bg="white",
-            fg=self.colors['dark']
-        ).pack(anchor="w", pady=(0, 30))
+        # Create text widget for overall statistics
+        overall_text_frame = tk.Frame(overall_frame, bg="white")
+        overall_text_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
-        settings = [
-            ("Theme", ["Light", "Dark", "System"]),
-            ("Chart Style", ["Default", "Seaborn", "ggplot", "bmh"]),
-            ("Default View", ["Welcome", "Data Preview", "Cleaning"]),
-            ("Auto-save", ["Yes", "No"]),
-            ("Display Rows", ["50", "100", "200", "500"]),
-            ("Export Format", ["CSV", "Excel", "JSON"])
-        ]
+        overall_scrollbar = ttk.Scrollbar(overall_text_frame)
+        overall_scrollbar.pack(side="right", fill="y")
         
-        for i, (label, options) in enumerate(settings):
-            frame = tk.Frame(settings_card, bg="white")
-            frame.pack(fill="x", pady=10)
-            
-            tk.Label(
-                frame,
-                text=label,
-                font=("Segoe UI", 11),
-                bg="white",
-                fg=self.colors['dark'],
-                width=15,
-                anchor="w"
-            ).pack(side="left")
-            
-            var = tk.StringVar(value=options[0])
-            for j, option in enumerate(options):
-                rb = tk.Radiobutton(
-                    frame,
-                    text=option,
-                    variable=var,
-                    value=option,
-                    font=("Segoe UI", 10),
-                    bg="white",
-                    fg="#4a5568",
-                    selectcolor=self.colors['light']
-                )
-                rb.pack(side="left", padx=10)
-        
-        # Save button
-        save_btn = tk.Button(
-            settings_card,
-            text="💾 Save Settings",
-            font=("Segoe UI", 11, "bold"),
-            bg=self.colors['success'],
-            fg="white",
-            padx=30,
-            pady=10,
-            cursor="hand2",
-            relief="flat"
+        overall_text = tk.Text(
+            overall_text_frame,
+            font=("Consolas", 10),
+            wrap="none",
+            yscrollcommand=overall_scrollbar.set,
+            bg="#f8fafc",
+            padx=15,
+            pady=15
         )
-        save_btn.pack(pady=40)
+        overall_text.pack(side="left", fill="both", expand=True)
+        overall_scrollbar.config(command=overall_text.yview)
         
-        save_btn.bind("<Enter>", lambda e: save_btn.config(bg="#06d6a0"))
-        save_btn.bind("<Leave>", lambda e: save_btn.config(bg=self.colors['success']))
+        # Display overall statistics
+        overall_text.insert("end", "DATASET OVERALL STATISTICS\n")
+        overall_text.insert("end", "=" * 50 + "\n\n")
+        
+        overall_text.insert("end", "BASIC INFORMATION:\n")
+        overall_text.insert("end", "-" * 40 + "\n")
+        overall_text.insert("end", f"Rows: {self.cleaned_df.shape[0]:,}\n")
+        overall_text.insert("end", f"Columns: {self.cleaned_df.shape[1]}\n")
+        overall_text.insert("end", f"Total cells: {self.cleaned_df.size:,}\n")
+        overall_text.insert("end", f"Memory usage: {self.cleaned_df.memory_usage(deep=True).sum() / 1024 / 1024:.2f} MB\n\n")
+        
+        overall_text.insert("end", "DATA TYPE DISTRIBUTION:\n")
+        overall_text.insert("end", "-" * 40 + "\n")
+        for dtype, count in self.cleaned_df.dtypes.value_counts().items():
+            dtype_str = str(dtype)
+            if dtype_str.startswith('int'):
+                dtype_name = "Integer"
+            elif dtype_str.startswith('float'):
+                dtype_name = "Float"
+            elif dtype_str == 'object':
+                dtype_name = "Text"
+            elif dtype_str == 'datetime64[ns]':
+                dtype_name = "Date"
+            else:
+                dtype_name = dtype_str
+            overall_text.insert("end", f"{dtype_name}: {count}\n")
+        overall_text.insert("end", "\n")
+        
+        overall_text.insert("end", "MISSING VALUES SUMMARY:\n")
+        overall_text.insert("end", "-" * 40 + "\n")
+        missing_total = self.cleaned_df.isnull().sum().sum()
+        overall_text.insert("end", f"Total missing values: {missing_total:,}\n")
+        overall_text.insert("end", f"Percentage of missing data: {(missing_total/self.cleaned_df.size*100):.2f}%\n\n")
+        
+        overall_text.insert("end", "DUPLICATE ROWS:\n")
+        overall_text.insert("end", "-" * 40 + "\n")
+        duplicate_count = self.cleaned_df.duplicated().sum()
+        overall_text.insert("end", f"Duplicate rows: {duplicate_count:,}\n")
+        overall_text.insert("end", f"Percentage duplicates: {(duplicate_count/len(self.cleaned_df)*100):.2f}%\n")
+        
+        overall_text.config(state="disabled")
     
     def export_cleaned_csv(self):
         if self.cleaned_df is None:
-            messagebox.showinfo("No Data", "No data to export.")
+            self.show_message("No Data", "No data to export.", "info")
             return
         
         path = filedialog.asksaveasfilename(
@@ -1137,38 +1808,34 @@ class EnhancedCSVAnalyzerApp:
             try:
                 if path.endswith('.csv'):
                     self.cleaned_df.to_csv(path, index=False)
+                    file_type = "CSV"
                 elif path.endswith('.xlsx'):
                     self.cleaned_df.to_excel(path, index=False)
+                    file_type = "Excel"
                 elif path.endswith('.json'):
                     self.cleaned_df.to_json(path, orient='records')
+                    file_type = "JSON"
                 
-                self.update_status(f"Exported to {path.split('/')[-1]}")
-                messagebox.showinfo("Success", 
-                                  f"Data exported successfully!\n\n"
-                                  f"File: {path}\n"
-                                  f"Rows: {self.cleaned_df.shape[0]:,}\n"
-                                  f"Columns: {self.cleaned_df.shape[1]}")
+                filename = path.split('/')[-1]
+                message = (f"Data exported successfully!\n\n"
+                          f"• File: {filename}\n"
+                          f"• Format: {file_type}\n"
+                          f"• Rows: {self.cleaned_df.shape[0]:,}\n"
+                          f"• Columns: {self.cleaned_df.shape[1]}\n"
+                          f"• Missing values: {self.cleaned_df.isnull().sum().sum():,}\n"
+                          f"• Duplicate rows: {self.cleaned_df.duplicated().sum():,}")
+                
+                self.update_status(f"Exported to {filename}")
+                self.show_message("Export Successful", message, "success")
                 
             except Exception as e:
-                messagebox.showerror("Export Failed", f"Error during export:\n{str(e)}")
-    
-    def show_error(self, message):
-        messagebox.showerror("Error", message)
-        self.update_status("Error occurred")
+                self.show_message("Export Failed", f"Error during export:\n{str(e)}", "error")
     
     def adjust_color(self, color, amount=20):
-        """Lighten or darken a color"""
-        # Simplified color adjustment - you can implement a proper one
+        """Lighten or darken a color (simplified implementation)"""
         return color
 
 if __name__ == "__main__":
     root = tk.Tk()
-    
-    # Set window icon (optional)
-    try:
-        root.iconbitmap('icon.ico')
-    except:
-        pass
-    
     app = EnhancedCSVAnalyzerApp(root)
     root.mainloop()
