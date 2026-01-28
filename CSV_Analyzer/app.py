@@ -588,7 +588,7 @@ class EnhancedCSVAnalyzerApp:
         ok_button = tk.Button(dialog, text="OK", command=dialog.destroy,
                             bg=button_color, fg="white", padx=50, pady=25,
                             font=("Segoe UI", 12, "bold"))
-        ok_button.pack(pady=20)
+        ok_button.pack(pady=10)
         
         # Add hover effect
         ok_button.bind("<Enter>", 
